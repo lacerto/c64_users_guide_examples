@@ -1,116 +1,119 @@
-; Convert a strint to floating point.
+; Convert a string to a floating point number and display
+; its exponent/mantissa representation.
 
 ; *** labels ***
+
 inlin  = $a560 ; read a line into the basic buffer
 strout = $ab1e ; print 0 terminated string
 prtqm  = $ab45 ; print "?"
 prtspc = $ab3b ; print space
-s2fac1 = $b7b5 ; convert string to floating point, store in fac1
-fac12s = $bddd ; convert fac1 to string
-stf1m  = $bbd4 ; store fac1 in the memory
-ldfac1 = $bba2 ; load fac1 from memory
+val    = $b7b5 ; convert string to floating point, store in fac1
+fout   = $bddd ; convert fac1 to string, sets pointer to string in a/y 
+mov2f  = $bbd4 ; store fac1 in the memory
+movfm  = $bba2 ; load fac1 from memory
 prtchr = $ab47 ; print char in a
 
-dst    = $fb   ; zp pointer for converting to hex
-    
 ; *** macros ***
 
 ; name:         convstrfac1
 ; description:  this macro converts a 0 terminated string to a floating point
 ;               number and stores it in fac1.
 ;               the 5 bytes of fac1 are then stored at the given location.
-; input:        \1 - address of the null terminated string
+; input:        a  - length of the string
+;               \1 - address of the null terminated string
 ;               \2 - address where fac1 will be stored
 ; output:       the 5 bytes of fac1 stored at \2
 
 convstrfac1 .macro    
-    ldx #<\1
-    ldy #>\1    
-    stx $22
-    sty $23   
-    jsr s2fac1
-    
-    ; store fac1
-    ldx #<\2
-    ldy #>\2
-    jsr stf1m
+                ldx #<\1
+                ldy #>\1    
+                stx $22
+                sty $23   
+                jsr val     ; input: a - strlen; $22/$23 - ptr to string
+                
+                ; store fac1
+                ldx #<\2
+                ldy #>\2
+                jsr mov2f
 .endm    
 
 printhex .macro
-    ; convert fac1 bytes to hex string
-    lda #<\2
-    sta dst
-    lda #>\2
-    sta dst+1    
-        
-    ldx #$00
-writenum    
-    lda \1,x
-    tay
-    txa
-    pha
-    tya
-    ldy #$00
-    jsr hexify
-    lda #"$"
-    jsr prtchr
-    lda #<\2
-    ldy #>\2
-    jsr strout
-    jsr prtspc
-    pla
-    tax
-    inx
-    cpx #\3
-    bne writenum
+                ; store hex string buffer pointer on the zero page
+                ;lda #<\2
+                ;sta dst
+                ;lda #>\2
+                ;sta dst+1    
+                    
+                ldx #$00        ; x = 0
+writenum        txa
+                pha
+                lda \1,x        ; get a byte from the floating point number
+                ldx #<\2
+                ldy #>\2
+                jsr hexify
+                lda #"$"        ; print the $ character
+                jsr prtchr
+                lda #<\2        ; load the ptr to the hex string
+                ldy #>\2
+                jsr strout      ; print the hex string
+                jsr prtspc      ; print a space
+                pla             ; get back a from the stack (the counter value)
+                tax             ; a -> x
+                inx             ; increase counter
+                cpx #\3         ; value in param 3 reached?
+                bne writenum    ; no - convert the next byte
 .endm
+
 
 ; *** main ***
 
-    *=$0801
-    
-    ; 10 sys 2064    
-    .byte $0c,$08,$0a,$00
-    .byte $9e,$20,$32,$30
-    .byte $36,$34,$00,$00
-    .byte $00    
+                *=$0801
+                
+                ; 10 sys 2064    
+                .byte $0c,$08,$0a,$00
+                .byte $9e,$20,$32,$30
+                .byte $36,$34,$00,$00
+                .byte $00    
+                
+                *=$0810         ; sys 2064
+                
+                ; print intro text
+                jsr intro
+                
+                ; get user input into a buffer
+                lda #<strbuf
+                ldy #>strbuf
+                jsr getinput    ; a = length of string
+                
+                ; convert the string to a floating point number and
+                ; store its exp/manitssa representation
+                #convstrfac1 strbuf, fpnum
+                
+                ; print the header
+                lda #<header
+                ldy #>header
+                jsr strout
+                
+                ; print the floating point number's bytes one by one
+                ; as hex numbers
+                #printhex fpnum, hexstr, 5
+                
+                ; print "=" and a space
+                lda #"="
+                jsr prtchr
+                jsr prtspc
+                
+                ; load fac1 from memory, convert it to string and print it
+                lda #<fpnum
+                ldy #>fpnum    
+                jsr ldprtfac1
+                
+                ; print a carriage return
+                lda #$0d
+                jsr prtchr
+                rts
 
-    *=$0810         ; sys2064
-
-    ; print intro text
-    jsr intro
-    
-    ; get user input into a buffer
-    lda #<strbuf
-    ldy #>strbuf
-    jsr getinput
-    
-    ; convert the string to a floating point number and
-    ; store its exp/manitssa representation
-    #convstrfac1 strbuf, fpnum
-    
-    lda #<header
-    ldy #>header
-    jsr strout
-    
-    ; print the floating point number's bytes one by one as hex numbers
-    #printhex fpnum, hexstr, 5
-    
-    ; print "="
-    lda #"="
-    jsr prtchr
-    jsr prtspc
-    
-    ; load fac1 from memory, convert it to string and print it
-    lda #<fpnum
-    ldy #>fpnum    
-    jsr ldprtfac1
-    
-    ; carriage return
-    lda #$0d
-    jsr prtchr
-    rts
-    
+                
 ; *** subroutines ***
 
 ; name:        intro
@@ -118,11 +121,10 @@ writenum
 ; input: -
 ; output: -
 
-intro
-    lda #<introtext
-    ldy #>introtext
-    jsr strout
-    rts
+intro           lda #<introtext
+                ldy #>introtext
+                jsr strout
+                rts
     
 ; name:         getinput
 ; description:  gets user input using basic inlin and copies it to a buffer
@@ -135,96 +137,112 @@ intro
 
 getinput
 .block
-    ; push the values of $fb and $fc to the stack
-    tax         ; a -> x
-    lda $fb
-    pha
-    lda $fc
-    pha
-
-    ; store the buffer pointer on the zero page
-    txa         ; x -> a
-    sta $fb
-    sty $fc
-
-    ; print question mark and space line input
-    jsr prtqm
-    jsr prtspc
-
-    ; get user input into the basic input buffer at $0200
-    jsr inlin
-    
-    ; copy the string from $0200 to the buffer
-    ldy #$00        ; y=0; this will be the index
-copystr    
-    lda $0200,y     ; get a byte from $0200+y
-    beq endcp       ; str is 0 terminated. 0 reached? then end
-    sta ($fb),y     ; copy one byte to the buffer
-    lda #$00
-    sta $0200,y     ; zero out the basic buffer to avoid a syntax error
-    iny             ; y++
-    jmp copystr     ; copy next byte
-endcp
-    sta ($fb),y     ; terminate the buffer with a 0 byte
-    
-    ; restore $fb and $fc from the stack
-    pla
-    sta $fc
-    pla
-    sta $fb
-    
-    ; y contains the length of the string
-    ; transfer this to a and return
-    tya
-    rts
+                ; push the values of $fb and $fc to the stack
+                tax         ; a -> x
+                lda $fb
+                pha
+                lda $fc
+                pha
+            
+                ; store the buffer pointer on the zero page
+                txa         ; x -> a
+                sta $fb
+                sty $fc
+            
+                ; print question mark and space line input
+                jsr prtqm
+                jsr prtspc
+            
+                ; get user input into the basic input buffer at $0200
+                jsr inlin
+                
+                ; copy the string from $0200 to the buffer
+                ldy #$00        ; y=0; this will be the index                
+copystr         lda $0200,y     ; get a byte from $0200+y
+                beq endcopy     ; str is 0 terminated. 0 reached? then end
+                sta ($fb),y     ; copy one byte to the buffer
+                lda #$00
+                sta $0200,y     ; 0 out the basic buffer to avoid a syntax error
+                iny             ; y++
+                jmp copystr     ; copy next byte
+endcopy         sta ($fb),y     ; terminate the buffer with a 0 byte
+                
+                ; restore $fb and $fc from the stack
+                pla
+                sta $fc
+                pla
+                sta $fb
+                
+                ; y contains the length of the string
+                ; transfer this to a and return
+                tya
+                rts
 .bend    
-         
+
+; name:         ldprtfac1
+; description:  loads a number from the specified memory location into fac1,
+;               then converts fac1 to string and prints it
+; input:        a - pointer to 5 byte floating point number (low byte)
+;               y - pointer to 5 byte floating point number (high byte)
+; output:       -
+
 ldprtfac1
 .block
-    ; load fac1
-    jsr ldfac1
-    
-    ; convert fac1 to string and print
-    jsr fac12s
-    jsr strout    
-
-    rts
+                ; load fac1
+                jsr movfm
+                
+                ; convert fac1 to string and print
+                jsr fout        ; pointer to string is in a/y
+                jsr strout      ; thus strout can be called immediately
+            
+                rts
 .bend
-    
+
+; name:         hexify
+; description:  
+; input:        a - this value will be converted to a hex string
+;               x - ptr to a 3 byte hex string buffer (low)
+;               y - ptr to a 3 byte hex string buffer (high)
+; output:       -
+; uses:         $fb and $fc
+; note:         taken from codebase64 - many thanks
+;               http://codebase64.org/doku.php?id=base:integer_to_hex_string
+
 hexify
 .block
-    tax
-	lsr
-	lsr
-	lsr
-	lsr
-	jsr hexc        ; convert upper nybble
-	jsr output
-	txa
-	and #$0f		; convert lower nybble
-	jsr hexc
-	jsr output
-	lda #$00        ; terminate string with 0
-	sta (dst),y
-	rts
+                stx $fb
+                sty $fc
+                ldy #$00
+                tax             ; a -> x
+                lsr
+                lsr
+                lsr
+                lsr             ; upper nybble -> lower nybble 
+                jsr hexc        ; convert upper nybble
+                jsr output      ; and store it in the buffer
+                txa             ; x -> a; the original value of a
+                and #$0f		; zero out the upper nybble
+                jsr hexc        ; convert lower nybble
+                jsr output      ; store it in the buffer
+                lda #$00        ; terminate string with 0
+                sta ($fb),y
+                rts
+            
+output          sta ($fb),y     ; output a byte using a zp-ptr and y-index
+                iny             ; increment the output address
+                rts
+                
+hexc            cmp #$0a		; subroutine converts 0-f to a character
+                bcs hexa
+                clc             ; digit 0-9
+                adc #$30        ; "0"
+                bne hexb        ; unconditional jump as z=0 always
+hexa            clc
+                adc #$37   		; digit a-f
+hexb            rts
 
-output	
-    sta (dst),y     ; output a byte using a zp-ptr and Y-index
-    iny             ; increment the output address
-    rts
-    
-hexc
-    cmp #$0a		; subroutine converts 0-F to a character
-	bcs hexa
-	clc             ; digit 0-9
-	adc #$30        ; "0"
-	bne hexb        ; unconditional jump coz Z=FALSE always
-hexa
-    clc
-	adc #$37   		; digit A-F
-hexb
-    rts
 .bend    
+
 
 ; *** data ***    
 
@@ -235,6 +253,7 @@ introtext
     .text "please enter a number"
     .byte $0d, $00
 
+; EXP MA3 MA2 MA1 MA0 in reverse    
 header
     .byte $0d
     
@@ -264,15 +283,15 @@ header
     .byte $20
     
     .byte $0d, $00
-    
-hexsign
-    .text "$"
 
+; buffer for a 0 terminated hexa string    
 hexstr
     .repeat 3, $00
 
+; location for the 5 byte floating point number    
 fpnum 
     .repeat 5, $00
     
+; string buffer    
 strbuf
 
