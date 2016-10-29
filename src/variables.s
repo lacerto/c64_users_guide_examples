@@ -1,46 +1,58 @@
-; C64 User's Guide p. 35 - Variables
+; C64 User's Guide p. 36 - Variables
 ;
 ;
+
+; *** labels ***
 
 inlin           = $a560
 strout          = $ab1e
 prtqm           = $ab45 ; print "?"
 prtspc          = $ab3b ; print space
 prtchr          = $ab47 ; print char in a
-ldfac1          = $bba2 ; load fac1 from memory
-fac2s           = $bddd ; convert fac1 to string
+movfm           = $bba2 ; load fac1 from memory
+fout            = $bddd ; convert fac1 to string
 linprt          = $bdcd ; x/a
+movfvar         = $bbd0 ; fac -> variable
+frestr          = $b6a3
 
 varnam          = $45
 
-                *=$c000         ; sys 49152
-                
-                lda #<fpnum
-                ldy #>fpnum
-                jsr ldfac1
-                
-                ; create variable x
-                lda #"x"
-                ldy #$00
+createfloatvar .macro
+                lda #\1
+                ldy #\2
                 jsr floatvaraddr
-                jsr $bbd0
                 
-                ; create variable x%
-                lda #"X"        ; shifted name!!!
-                ldy #$80
+                lda #<\3
+                ldy #>\3
+                jsr movfm                
+                jsr movfvar
+.endm
+
+createintvar .macro
+                lda #\1
+                ldy #\2
                 jsr intvaraddr
-                lda #$00        
-                ldy #$0f        ; value = 15
-                sta $64
-                sty $65
-                jsr $a9ca
                 
+                lda #<\3
+                ldy #>\3
+                sta $fb
+                sty $fc
+                ldy #$01
+                lda ($fb),y
+                sta $64
+                dey
+                lda ($fb),y
+                sta $65                
+                jsr $a9ca
+.endm
+     
+createstrvar .macro
                 ; create variable x$
-                lda #"x"        ; mixed: first letter normal, second one shifted
-                ldy #$80
+                lda #\1
+                ldy #\2
                 jsr strvaraddr
-                jsr $b6a3       ; frestr
-                lda #strend-str
+                jsr frestr
+                lda #\3
                 jsr $b475
                 ldy #$02
 a0              lda $0061,y
@@ -48,64 +60,68 @@ a0              lda $0061,y
                 dey
                 bpl a0
                 iny
-a1              lda str,y
+a1              lda @4,y
                 sta ($62),y
                 iny
                 cpy $61
                 bne a1
-    
+.endm
+
+
+; *** main ***
+
+                *=$c000         ; sys 49152
+                
+                ; create floating point variable x
+                ; and assign it a value
+                ; $58 = x
+                ; $00 = no second character
+                #createfloatvar $58, $00, fpnum
+
+                ; create integer variable x%
+                ; and assign it a value    
+                ; $d8 = $80 + $58 -> "x"+$80
+                ; $80 = $80 + $00 -> no second character
+                #createintvar $d8, $80, intnum
+                
+                ; create string variable x$
+                ; and assign it a value
+                ; $58 = x
+                ; $80 = $80 + $00 -> no second character
+                #createstrvar $58, $80, strend-str, "str"
+                
+                ; print text
                 lda #<strxint
                 ldy #>strxint
                 jsr strout
                 
+                ; print the integer variable's value
                 lda #"X"
                 ldy #$80
-                jsr intvaraddr
-                ldy #$01
-                lda ($49),y
-                tax
-                dey
-                lda ($49),y
-                jsr linprt
+                jsr printintvar
                 
+                ; print a space
                 jsr prtspc
                 
+                ; print text
                 lda #<strxfloat
                 ldy #>strxfloat
                 jsr strout
                 
-                ; transfer floating point variable to fac and print its value
+                ; print the floating point variable's value
                 lda #"x"
                 ldy #$00
-                jsr floatvaraddr
-                jsr $bba2       ; var -> fac
-                jsr fac2s
-                jsr strout
+                jsr printfloatvar
 
+                ; print a carriage return
                 lda #$0d
                 jsr prtchr
                 
-                ; print x$
-                
-                lda #"x"        ; mixed: first letter normal, second one shifted
+                ; print the string variable's value                
+                lda #"x"
                 ldy #$80
-                jsr strvaraddr
-                ldy #$00
-                lda ($49),y
-                sta $fd
-                iny
-                lda ($49),y
-                sta $fb
-                iny
-                lda ($49),y
-                sta $fc
-                ldy #$00
-printloop       lda ($fb),y
-                jsr prtchr
-                iny
-                cpy $fd
-                bne printloop
-                
+                jsr printstrvar
+                                
                 ; calculate x% + x and print result
                 
                 lda #"X" 
@@ -128,13 +144,48 @@ printloop       lda ($fb),y
                 jsr $bba2       ; var -> fac                
                 
                 jsr $b86a       ; fac = fac + arg
-                jsr fac2s
+                jsr fout
                 jsr strout                
                 
                 rts     
                 
 ; *** subroutines ***
-
+                
+printintvar     jsr intvaraddr
+                ldy #$01
+                lda ($49),y
+                tax
+                dey
+                lda ($49),y
+                jsr linprt
+                rts
+                
+printfloatvar   jsr floatvaraddr
+                jsr $bba2       ; var -> fac
+                jsr fout
+                jsr strout
+                rts
+                
+printstrvar     
+.block
+                jsr strvaraddr
+                ldy #$00
+                lda ($49),y
+                sta $fd
+                iny
+                lda ($49),y
+                sta $fb
+                iny
+                lda ($49),y
+                sta $fc
+                ldy #$00
+printloop       lda ($fb),y
+                jsr prtchr
+                iny
+                cpy $fd
+                bne printloop
+.bend         
+                
 intvaraddr      ldx #$00
                 stx $0d
                 ldx #$80
@@ -157,7 +208,11 @@ getvar          sta varnam
     
 ; *** data ***                
                 
+; 23.5
 fpnum           .byte $85, $3c, $00, $00, $00
+
+; 15
+intnum          .word $000f
     
 str             .text "the sum of x%+x ="  
 strend
