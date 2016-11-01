@@ -37,13 +37,14 @@ convstrfac1 .macro
                 jsr mov2f
 .endm    
 
+; name:         printhex
+; description:  this macro converts a given number of bytes to 2 digit hex 
+;               strings and prints them one by one
+; input:        \1 - pointer to the one byte integer to be printed as hex str
+;               \2 - pointer to a 3 byte buffer for storing the converted
+;                    2 digit hex string and its terminating 0
+
 printhex .macro
-                ; store hex string buffer pointer on the zero page
-                ;lda #<\2
-                ;sta dst
-                ;lda #>\2
-                ;sta dst+1    
-                    
                 ldx #$00        ; x = 0
 writenum        txa
                 pha
