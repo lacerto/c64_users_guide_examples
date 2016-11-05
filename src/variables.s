@@ -10,61 +10,88 @@ prtqm           = $ab45 ; print "?"
 prtspc          = $ab3b ; print space
 prtchr          = $ab47 ; print char in a
 movfm           = $bba2 ; load fac1 from memory
+movint          = $a9ca ; load an integer value into a variable
 fout            = $bddd ; convert fac1 to string
 linprt          = $bdcd ; x/a
 movfvar         = $bbd0 ; fac -> variable
-frestr          = $b6a3
+frestr          = $b6a3 ; evaluate string
+strvec          = $b475 ; copy string pointer and make string space A bytes long
 
 varnam          = $45
+
+; name:         createfloatvar
+; description:  calls the necessary subroutines to create a float variable
+;               and loads it with the given value
+; input:        \1 - variable name first char
+;               \2 - variable name second char
+;               \3 - 5 byte floating point number (exponent-mantissa)
+; output:       -
 
 createfloatvar .macro
                 lda #\1
                 ldy #\2
-                jsr floatvaraddr
+                jsr floatvaraddr    ; create variable
                 
                 lda #<\3
                 ldy #>\3
-                jsr movfm                
-                jsr movfvar
+                jsr movfm           ; num -> FAC
+                jsr movfvar         ; FAC -> variable
 .endm
+
+; name:         createintvar
+; description:  calls the necessary subroutines to create an integer variable
+;               and loads it with the given value
+; input:        \1 - variable name first char + $80
+;               \2 - variable name second char + $80
+;               \3 - two-byte integer (low / high)
+; output:       -
 
 createintvar .macro
                 lda #\1
                 ldy #\2
-                jsr intvaraddr
+                jsr intvaraddr      ; create variable
                 
                 lda #<\3
                 ldy #>\3
-                sta $fb
-                sty $fc
+                sta $fb             ; store the pointer to the two-byte                                    
+                sty $fc             ; int on the zp
                 ldy #$01
                 lda ($fb),y
-                sta $64
-                dey
+                sta $64             ; store the integer in $64 & $65
+                dey                 ; in high byte - low byte order
                 lda ($fb),y
                 sta $65                
-                jsr $a9ca
+                jsr movint          ; int -> variable
 .endm
-     
+
+; name:         createstrvar
+; description:  calls the necessary subroutines to create a string variable
+;               and loads it with the given value
+; input:        \1 - variable name first char
+;               \2 - variable name second char + $80
+;               \3 - string length
+;               \4 - pointer to the string
+; output:       -
+
 createstrvar .macro
                 ; create variable x$
                 lda #\1
                 ldy #\2
-                jsr strvaraddr
+                jsr strvaraddr      ; create variable
                 jsr frestr
                 lda #\3
-                jsr $b475
+                jsr strvec          ; pass the length to strvec
                 ldy #$02
-a0              lda $0061,y
-                sta ($49),y
-                dey
+a0              lda $0061,y         ; strvec stores the length at $61
+                sta ($49),y         ; and the pointer to the str at $62/63
+                dey                 ; copy this to the variable descriptor
                 bpl a0
                 iny
-a1              lda @4,y
-                sta ($62),y
+a1              lda @4,y            ; copy the string to the area pointed 
+                sta ($62),y         ; by $62/63
                 iny
-                cpy $61
-                bne a1
+                cpy $61             ; length reached?
+                bne a1              ; no, copy next byte
 .endm
 
 
