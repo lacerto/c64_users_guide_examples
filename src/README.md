@@ -6,6 +6,7 @@ hello-c64 | Prints "COMMODORE 64" 5 times on the screen | $02a8 = 680 | ```LOAD"
 input | Gets a string input from the user and prints it | $02a8 = 680 | ```LOAD"INPUT",8,1```<br>```SYS680``` | 
 variables | Creates BASIC integer, floating point and string variables and prints their values | $c000 = 49152 | ```LOAD"VARIABLES",8,1```<br>```NEW```<br>```SYS49152``` | Need to use ```NEW``` after loading as the ```LOAD``` command messes up the BASIC memory pointers.
 color-bars | Prints randomly colored bars | $02a8 = 680 | ```LOAD"COLOR-BARS",8,1```<br>```SYS680``` | How to use RND from assembly
+bouncing-ball | Shows a moving ball that bounces back if it hits the screen border | $0334 = 820 | ```LOAD"BOUNCING-BALL",8,1```<br>```SYS820``` | Get screen size, change border and background colors, write screen codes directly to screen memory
 
 #Utilities
 
