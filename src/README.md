@@ -1,4 +1,4 @@
-#Examples
+# Examples
 
 Name | Description | :arrow_forward: Start address | How to use | Notes
 ---- | ----------- | ----------------------------- | ---------- | -----
@@ -9,7 +9,7 @@ faddh | Prints the numbers from 1 to 10 by 0.5 | $0334 = 820 | ```LOAD"FADDH",8,
 color-bars | Prints randomly colored bars | $02a8 = 680 | ```LOAD"COLOR-BARS",8,1```<br>```SYS680``` | How to use RND from assembly
 bouncing-ball | Shows a moving ball that bounces back if it hits the screen border | $0334 = 820 | ```LOAD"BOUNCING-BALL",8,1```<br>```SYS820``` | Get screen size, change border and background colors, write screen codes directly to screen memory
 
-#Utilities
+# Utilities
 
 Name | Description | :arrow_forward: Start address | How to use | Notes
 ---- | ----------- | ----------------------------- | ---------- | -----
