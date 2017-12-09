@@ -4,42 +4,37 @@
 
 ; *** labels ***
 
-strout = $ab1e
-prtspc = $ab3b ; print space
-prtchr = $ab47
-givayf = $b391
-faddh  = $b849
-fout   = $bddd
-movfm  = $bba2
-movmf  = $bbd4 
-fcomp  = $bc5b
-plot   = $fff0
+strout          = $ab1e         ; print null terminated string
+prtspc          = $ab3b         ; print space
+prtchr          = $ab47         ; print a single character in a
+givayf          = $b391         ; convert 16-bit signed integer to floating point (FAC1)
+faddh           = $b849         ; add 0.5 to FAC1
+fout            = $bddd         ; converts FAC1 to string, pointer to the string in a/y
+movfm           = $bba2         ; move floating point num from a/y to FAC1
+movmf           = $bbd4         ; save FAC1 to x/y as a 5-byte floating point num
+fcomp           = $bc5b         ; compare FAC1 to a floating point num at a/y
+plot            = $fff0         ; read/set cursor location
 
 ; *** main ***
 
-                *=$033e         ; sys 830 ($33C-$3FB TBUFFER)
-
-                ; fac = 0.5 (0.5 constant at $bf11)
-                lda #$11
+                *=$0334         ; sys820 ($33C-$3FB TBUFFER)
+                
+                lda #$11        ; 0.5 floating point constant at $bf11
                 ldy #$bf
-                jsr movfm
+                jsr movfm       ; initialize FAC1=0.5
+                                
+loop            jsr faddh       ; FAC1+=0.5
                 
-                ; fac = fac + 0.5
-loop            jsr faddh
-                
-                ; savefac <- fac
-                ldx #<savefac
+                ldx #<savefac   ; save FAC1
                 ldy #>savefac
                 jsr movmf
                 
-                ; fac to string + print
-                jsr fout
-                jsr strout
-                
-                ; get cursor pos
-                sec
+                jsr fout        ; convert FAC1 to string
+                jsr strout      ; and print it
+                                
+                sec             ; get cursor pos
                 jsr plot
-                stx row
+                stx row         ; and store it
                 sty column
                 
                 ; column < 10 -> jump to column 10
@@ -76,30 +71,27 @@ col00           ldy #$00
                 lda #$0d        ; print a carriage return to scroll the screen
                 jsr prtchr
                 ldy #$00        ; set column to 0
-                
-                ; set cursor position
-setxy           ldx row
+                                
+setxy           ldx row         ; set cursor position
                 clc
                 jsr plot
-                
-                ; fac <- savefac
-                lda #<savefac
+                                
+                lda #<savefac   ; restore FAC1
                 ldy #>savefac
                 jsr movfm
                 
-                ; fac == const10
-                lda #<const10
+                lda #<const10   ; pointer to constant 10
                 ldy #>const10
                 jsr fcomp
-                cmp #$00        ; if a == 0 then fac equals const10
-                bne loop
+                cmp #$00        ; FAC1 == 10?
+                bne loop        ; no -> next iteration
                 
                 rts
                 
 ; *** data ***
 
-const10         .byte $84, $20, $00, $00, $00
-savefac         .repeat 5, $00
-row             .byte $00
-column          .byte $00
+const10         .byte $84, $20, $00, $00, $00   ; floating point constant 10
+savefac         .repeat 5, $00                  ; reserving mem for saving FAC1
+row             .byte $00                       ; current screen row
+column          .byte $00                       ; current screen column
 
