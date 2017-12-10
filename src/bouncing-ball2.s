@@ -67,7 +67,16 @@ a00
 
 ; *** main ***
 
-                *=$0334         ; sys820
+                *=$0801
+                ; 2017 SYS2064
+                .word $080b     ; address of next basic line
+                .word $07e1     ; line number
+                .byte $9e       ; sys token
+                .text "2061"    ; address as string
+                .byte $00       ; end of basic line
+                .word $0000     ; address of next basic line; $0000 -> end of basic program
+
+                *=$080d         ; sys2061
                 lda #$00        ; initialize
                 sta dirflags    ;   the direction flags
                 sta xcoord      ;   and the coordinates of the ball
@@ -102,7 +111,7 @@ plcobst                         ; place the obstacles
                 ldx #$00        ; get the start address of screen memory
                 jsr fscadr
                 lda pnt         ; add the offset to it
-                clc
+                clc             ; clear the carry otherwise adc adds it to the result
                 adc offset
                 sta pnt
                 lda pnt+1
@@ -113,7 +122,7 @@ plcobst                         ; place the obstacles
                 sta (pnt),y
                 pla             ; get the loop counter from stack
                 tax
-                dex             ; x++
+                dex             ; x--
                 bne plcobst     ; did not reach zero -> keep looping
 
 mainloop
@@ -134,47 +143,96 @@ mainloop
                 lda #sp         ; delete the ball, overwrite it with a space
                 sta (pnt),y
                 
+checkx                
                 bit dirflags    ; check the direction flag
                                 ; the bit command copies bits 6 and 7 to bits
                                 ;   6 (overflow flag) and 7 (negative flag) of the
                                 ;   status register                                
                 bmi decxc       ; if the negative flag is high then decrement the x coordinate
                 inc xcoord      ; otherwise increment it
+                ldy xcoord      
+                lda (pnt),y
+                cmp #obstacle   ; check if there is an obstacle at the new position
+                bne checkright  ;  no -> check if we've reached the right border
+                jsr invertx     ;  yes -> invert direction and step back
+                jmp checkx
+checkright                
                 lda xcoord
                 cmp xsize       ; reached the rightmost column?
                 bne checky      ;   no  -> go on with checking the y coordinate
-invertx         
-                lda #%10000000  ;   yes -> invert the x direction flag
-                eor dirflags
-                sta dirflags
+invx         
+                jsr invertx     ;   yes -> invert the x direction flag
                 jmp checky      ; go on with checking the y coordinate                                
 decxc
                 dec xcoord      ; x--
-                beq invertx     ; reached 0? -> invert the direction flag      
+                ldy xcoord
+                lda (pnt),y
+                cmp #obstacle   ; check if there is an obstacle at the new position
+                bne checkleft   ;  no -> check if we've reached the left border
+                jsr invertx     ;  yes -> invert direction and step back
+                jmp checkx
+checkleft
+                lda xcoord                
+                beq invx        ; reached 0? -> invert the direction flag      
 
 checky
                 bit dirflags    ; check the direction flag
                 bvs decyc       ; if the overflow flag is high then decrement the y coordinate
                 inc ycoord      ; otherwise increment it
+                ldx ycoord
+                jsr fscadr      ; get the screen line address
+                ldy xcoord
+                lda (pnt),y
+                cmp #obstacle   ; check if there is an obstacle at the new position
+                bne checkbottom ;  no -> check if we've reached the bottom border
+                jsr inverty     ;  yes -> invert direction and step back
+                jmp checky                
+checkbottom                
                 lda ycoord
                 cmp ysize       ; reached the bottom screen line?
                 bne continue    ;   no  -> continue the main loop
-inverty         
-                lda #%01000000  ;   yes -> invert the y direction flag
-                eor dirflags
-                sta dirflags
+invy         
+                jsr inverty     ;   yes -> invert the y direction flag
                 jmp mainloop    ; continue the main loop                
 decyc
                 dec ycoord      ; y--
-                beq inverty     ; reached 0? -> invert the direction flag
+                ldx ycoord
+                jsr fscadr
+                ldy xcoord
+                lda (pnt),y
+                cmp #obstacle   ; check if there is an obstacle at the new position
+                bne checktop    ;  no -> check if we've reached the top border
+                jsr invertx     ;  yes -> invert direction and step back
+                jmp checky
+checktop        
+                lda ycoord                                
+                beq invy        ; reached 0? -> invert the direction flag
 
 continue                
                 jmp mainloop    ; loop forever
+
+; *** subroutines ***
+
+; inverts the x direction flag
+; destroys a
+invertx
+                lda #%10000000
+                eor dirflags
+                sta dirflags
+                rts
+
+; inverts the y direction flag
+; destroys a
+inverty
+                lda #%01000000
+                eor dirflags
+                sta dirflags
+                rts
 
 ; *** data ***
 
 xsize           .byte $00       ; max number of screen columns
 ysize           .byte $00       ; max number of screen lines
-const1000       .byte $8a, $7a
+const1000       .byte $8a, $7a  ; constant 1000 in floating point format
                 .repeat 3, $00
-offset          .byte $00, $00            
+offset          .byte $00, $00  ; screen mem offset for placing the obstacles           
