@@ -2,8 +2,12 @@
 
 clrscr          = $e544         ; initializes and clears the screen, puts cursor into home position
 getin           = $ffe4         ; get one byte from the input device
+plot            = $fff0         ; set cursor position if carry clear / get position if carry set
 
+pnt             = $d1
+pntr            = $d3
 hibase          = $0288         ; top page of screen memory
+rptflag         = $028a
 extcol          = $d020         ; border color
 bgcol0          = $d021         ; background color
 colramh         = $d8           ; high byte of color ram address
@@ -20,6 +24,7 @@ addr            = $fd           ; screen address to put a character to
 
 bgcolor         = $00           ; background color
 frmcolor        = $01           ; frame color
+curscolor       = $07           ; cursor color
 
 ; *** macros ***
 
@@ -54,19 +59,53 @@ setbgcol .macro
                 jsr drawframe
                 jsr initcursor
                 jsr togglecursor
+                jsr togglerepeat
                 jsr getkey
+                jsr togglerepeat
                 #setbgcol $0e, $06
                 jsr togglecursor
                 rts
 
 ; *** subroutines ***
 
+togglerepeat
+.block
+                lda rptflag
+                bmi delflag
+                lda #$80
+                bne store
+delflag         lda #$00
+store           sta rptflag                
+                rts
+.bend
+
 getkey
 .block
                 jsr getin
+                cmp #$44        ; D
+                beq right
+                cmp #$41        ; A
+                beq left
+                cmp #$57        ; W
+                beq up
+                cmp #$53        ; S
+                beq down
+                cmp #$20        ; space
+                beq draw
                 cmp #$0d
                 beq end
                 bne getkey
+
+right           jsr cursright
+                jmp getkey                
+left            jsr cursleft
+                jmp getkey                
+up              jsr cursup
+                jmp getkey                
+down            jsr cursdown
+                jmp getkey                
+draw            jsr togglepixel
+                jmp getkey
 end                
                 rts
 .bend
@@ -152,7 +191,7 @@ copydata        lda cursor,x
                 bne copydata
 
                 ; set sprite color for sprite #0
-                lda #$08
+                lda #curscolor
                 sta sp0col
 
                 ; zero out the 9th bit of the x coordinate (sprite #0 -> bit 0 of msigx)
@@ -165,6 +204,9 @@ copydata        lda cursor,x
                 ldy #58
                 stx sp0x
                 sty sp0y
+                lda #$01
+                sta cursx
+                sta cursy
                 rts                
 .bend
 
@@ -177,6 +219,83 @@ togglecursor
                 eor spena
                 sta spena
                 rts
+
+cursright
+.block
+                lda #$08
+                clc
+                adc sp0x
+                cmp #$e0
+                beq end
+                sta sp0x
+                inc cursx
+end
+                rts                
+.bend
+
+cursleft
+.block
+                lda sp0x
+                sec
+                sbc #$08
+                cmp #$18
+                beq end
+                sta sp0x
+                dec cursx
+end
+                rts                
+.bend
+
+cursup
+.block
+                lda sp0y
+                sec
+                sbc #$08
+                cmp #$32
+                beq end
+                sta sp0y
+                dec cursy
+end
+                rts                
+.bend
+
+cursdown
+.block
+                lda #$08
+                clc
+                adc sp0y
+                cmp #$e2
+                beq end
+                sta sp0y
+                inc cursy
+end
+                rts                
+.bend
+
+togglepixel
+.block
+                clc
+                ldx cursy
+                ldy cursx
+                jsr plot
+                lda pnt
+                clc
+                adc pntr
+                sta addr
+                lda pnt+1
+                sta addr+1
+                ldy #$00
+                lda (addr),y
+                cmp #$a0
+                beq delpixel
+                lda #$a0
+                bne store
+delpixel                
+                lda #$20
+store
+                sta (addr),y
+                rts
+.bend
 
 ; *** data ***
 
@@ -294,3 +413,6 @@ cursor          .byte $ff, $00, $00
                 .byte $81, $00, $00
                 .byte $ff, $00, $00
                 .repeat 39, $00
+
+cursx           .byte $01                
+cursy           .byte $01
