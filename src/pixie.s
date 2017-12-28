@@ -278,12 +278,15 @@ togglepixel
                 ldx cursy
                 ldy cursx
                 jsr plot
+                lda pnt+1
+                sta addr+1
                 lda pnt
                 clc
                 adc pntr
+                bcc nooverflow
+                inc addr+1
+nooverflow
                 sta addr
-                lda pnt+1
-                sta addr+1
                 ldy #$00
                 lda (addr),y
                 cmp #$a0
