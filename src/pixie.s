@@ -8,6 +8,13 @@ extcol          = $d020         ; border color
 bgcol0          = $d021         ; background color
 colramh         = $d8           ; high byte of color ram address
 
+; sprite registers
+spena           = $d015
+sp0col          = $d027
+sp0x            = $d000
+sp0y            = $d001
+msigx           = $d010
+
 offset          = $fb           ; offset of the current character in the frame
 addr            = $fd           ; screen address to put a character to
 
@@ -45,8 +52,11 @@ setbgcol .macro
                 *=$080d         ; sys2061
                 #setbgcol bgcolor, bgcolor
                 jsr drawframe
+                jsr initcursor
+                jsr togglecursor
                 jsr getkey
                 #setbgcol $0e, $06
+                jsr togglecursor
                 rts
 
 ; *** subroutines ***
@@ -112,6 +122,61 @@ c03
 end
                 rts
 .bend                
+
+; name:         initcursor
+; description:  initializes the cursor sprite
+; input:        -
+; output:       -
+initcursor
+.block
+                ; calculate sprite data pointer location
+                lda sproffset
+                sta addr
+                lda sproffset+1
+                sta addr+1
+                lda hibase      ; add the screen memory address
+                clc
+                adc addr+1      ; data pointer is in addr
+                sta addr+1
+
+                ; set data pointer to the sprite block
+                lda #$0b        ; sprite block 11 ($02c0-$02ff otherwise unused area)
+                ldx #$00        ; sprite #0
+                sta (addr,x)
+
+                ; copy sprite data to block
+copydata        lda cursor,x
+                sta $02c0,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata
+
+                ; set sprite color for sprite #0
+                lda #$08
+                sta sp0col
+
+                ; zero out the 9th bit of the x coordinate (sprite #0 -> bit 0 of msigx)
+                lda #$fe
+                and msigx
+                sta msigx
+		        
+                ; set initial sprite position
+                ldx #32
+                ldy #58
+                stx sp0x
+                sty sp0y
+                rts                
+.bend
+
+; name:         togglecursor
+; description:  enables and disables the cursor sprite
+; input:        -
+; output:       -
+togglecursor
+                lda #$01
+                eor spena
+                sta spena
+                rts
 
 ; *** data ***
 
@@ -214,4 +279,18 @@ frame           .byte $00, $00, $70 ; top line
                 .byte $88, $03, $43
                 .byte $89, $03, $7d
 
-                .byte $ff, $ff      ; end                                                                       
+                .byte $ff, $ff      ; end
+
+                ; offset of sprite data registers (from beginning of screen memory)
+sproffset       .word $03f8
+
+                ; cursor sprite data
+cursor          .byte $ff, $00, $00
+                .byte $81, $00, $00
+                .byte $81, $00, $00
+                .byte $81, $00, $00
+                .byte $81, $00, $00
+                .byte $81, $00, $00
+                .byte $81, $00, $00
+                .byte $ff, $00, $00
+                .repeat 39, $00
