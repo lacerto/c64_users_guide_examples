@@ -1,30 +1,44 @@
+; Pixie
+;
+; A very rudimentary sprite editor written for creating the balloon
+; sprite for the "Up, up and away!" example (C64 User's Guide p. 71)
+; and for learning about displaying and moving simple sprites.
+
 ; *** labels ***
 
+; BASIC/KERNAL routines
 clrscr          = $e544         ; initializes and clears the screen, puts cursor into home position
 getin           = $ffe4         ; get one byte from the input device
 plot            = $fff0         ; set cursor position if carry clear / get position if carry set
 
-pnt             = $d1
-pntr            = $d3
+; BASIC/KERNAL variables and pointers
+pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
+pntr            = $d3           ; cursor column in the current screen line
 hibase          = $0288         ; top page of screen memory
-rptflag         = $028a
-extcol          = $d020         ; border color
-bgcol0          = $d021         ; background color
-colramh         = $d8           ; high byte of color ram address
+rptflag         = $028a         ; flag for which keys do repeat ($80 - all; default value is $00 which allows only
+                                ;   the cursor movement keys, insert/delete key, and the space bar to repeat)
+; VIC registers
+extcol          = $d020         ; border color VIC register
+bgcol0          = $d021         ; background color VIC register
 
 ; sprite registers
-spena           = $d015
-sp0col          = $d027
-sp0x            = $d000
-sp0y            = $d001
-msigx           = $d010
+spena           = $d015         ; sprite enable register
+sp0col          = $d027         ; sprite 0 color register
+sp0x            = $d000         ; sprite 0 x position
+sp0y            = $d001         ; sprite 0 y position
+msigx           = $d010         ; most significant bits of sprites 0-7 x position
 
+; zero page pointers
 offset          = $fb           ; offset of the current character in the frame
 addr            = $fd           ; screen address to put a character to
 
+; color constants
 bgcolor         = $00           ; background color
 frmcolor        = $01           ; frame color
 curscolor       = $07           ; cursor color
+
+; other constants
+colramh         = $d8           ; high byte of color ram address
 
 ; *** macros ***
 
@@ -46,6 +60,7 @@ setbgcol .macro
 ; *** main ***
 
                 *=$0801
+                ; BASIC program to start the ML program that comes directly after it
                 ; 2017 SYS2064
                 .word $080b     ; address of next basic line
                 .word $07e1     ; line number
@@ -68,17 +83,25 @@ setbgcol .macro
 
 ; *** subroutines ***
 
+; name:         togglerepeat
+; description:  switches between all keys repeat and only default keys repeat behavior
+; input:        -
+; output:       -
 togglerepeat
 .block
                 lda rptflag
-                bmi delflag
-                lda #$80
+                bmi delflag     ; branch if negative flag is high (bit 7 of rptflag high)
+                lda #$80        ; $80 -> all keys repeat
                 bne store
-delflag         lda #$00
+delflag         lda #$00        ; restore default value 
 store           sta rptflag                
                 rts
 .bend
 
+; name:         getkey
+; description:  wait for key presses and process user input
+; input:        -
+; output:       -
 getkey
 .block
                 jsr getin
@@ -92,8 +115,8 @@ getkey
                 beq down
                 cmp #$20        ; space
                 beq draw
-                cmp #$0d
-                beq end
+                cmp #$0d        ; return
+                beq end                
                 bne getkey
 
 right           jsr cursright
@@ -220,6 +243,10 @@ togglecursor
                 sta spena
                 rts
 
+; name:         cursright
+; description:  move the cursor sprite to the right
+; input:        -
+; output:       -
 cursright
 .block
                 lda #$08
@@ -233,6 +260,10 @@ end
                 rts                
 .bend
 
+; name:         cursleft
+; description:  move the cursor sprite to the left
+; input:        -
+; output:       -
 cursleft
 .block
                 lda sp0x
@@ -246,6 +277,10 @@ end
                 rts                
 .bend
 
+; name:         cursup
+; description:  move the cursor sprite up
+; input:        -
+; output:       -
 cursup
 .block
                 lda sp0y
@@ -259,6 +294,10 @@ end
                 rts                
 .bend
 
+; name:         cursdown
+; description:  move the cursor sprite down
+; input:        -
+; output:       -
 cursdown
 .block
                 lda #$08
@@ -272,6 +311,10 @@ end
                 rts                
 .bend
 
+; name:         togglepixel
+; description:  toggle a "pixel" in the sprite drawing area (toggles between a space and inverted space character)
+; input:        -
+; output:       -
 togglepixel
 .block
                 clc
@@ -302,6 +345,10 @@ store
 
 ; *** data ***
 
+                ; The frame marking the boundaries of the sprite drawing area.
+                ; byte 1: offset from the start address of the current screen memory - low byte
+                ; byte 2: offset high byte (if bit 7 is high the copy routine finishes)
+                ; byte 3: screen code to put into screen memory
 frame           .byte $00, $00, $70 ; top line
                 .byte $01, $00, $43
                 .byte $02, $00, $43
@@ -401,9 +448,10 @@ frame           .byte $00, $00, $70 ; top line
                 .byte $88, $03, $43
                 .byte $89, $03, $7d
 
-                .byte $ff, $ff      ; end
+                .byte $ff, $ff      ; end - the first byte is ignored
+                                    ;       if the second byte's 7th bit is high the copy routine exits
 
-                ; offset of sprite data registers (from beginning of screen memory)
+                ; offset of sprite data registers (from beginning of screen memory; default $0400+$03f8=$07f8)
 sproffset       .word $03f8
 
                 ; cursor sprite data
@@ -417,5 +465,6 @@ cursor          .byte $ff, $00, $00
                 .byte $ff, $00, $00
                 .repeat 39, $00
 
+                ; current position of the cursor sprite in screen columns and rows
 cursx           .byte $01                
 cursy           .byte $01
