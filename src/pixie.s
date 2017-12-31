@@ -171,6 +171,7 @@ up              jsr cursup
 down            jsr cursdown
                 jmp getkey                
 draw            jsr togglepixel
+                jsr updatepreview
                 jmp getkey
 end                
                 rts
@@ -415,6 +416,68 @@ copydata        sta $0340,x
 togglepreview
                 #togglesprite 1
                 rts
+
+; name:         updatepreview
+; description:  update the preview sprite
+; input:        -
+; output:       -
+updatepreview
+.block
+                ; handle row
+                lda #$40        ; addr = (cursy-1)*3
+                sta addr
+                lda #$03
+                sta addr+1
+                ldy cursy
+                dey
+                ldx #$03                
+loop            tya
+                clc
+                adc addr
+                bcc nooverflow
+                inc addr+1
+nooverflow
+                sta addr
+                dex
+                bne loop
+
+                ; handle column
+                lda cursx
+                cmp #$09        
+                bcc continue    ; a<9 then continue
+                cmp #$11
+                bcc a01         ; a<17 -> a01
+                sec
+                sbc #$08        ; a-=8
+                clc
+a02             inc addr        ; addr++
+                bcc a01
+                inc addr+1
+a01             sec             ; a-=8; addr++
+                sbc #$08
+                clc
+                inc addr
+                bcc continue
+                inc addr+1
+
+                ; toggle bit at addr
+continue        sec
+                sbc #$08        ; calculate abs(a-8)
+                eor #$ff
+                clc
+                adc #$01
+                tax
+                inx
+                lda #$00
+                sec
+shiftleft       rol             ; set bit number a
+                dex 
+                bne shiftleft
+                ldy #$00
+                eor (addr),y    ; toggle bit number a at addr
+                sta (addr),y
+                rts
+.bend
 
 ; *** data ***
 
