@@ -525,7 +525,7 @@ frame           .byte $00, $00, $70 ; top line
                 .byte $f0, $00, $42
                 .byte $09, $01, $42  
                 .byte $18, $01, $73 ; mark
-                .byte $31, $01, $42
+                .byte $31, $01, $6b ; mark
 
                 .byte $40, $01, $42 ; 7 lines
                 .byte $59, $01, $42
@@ -540,7 +540,7 @@ frame           .byte $00, $00, $70 ; top line
                 .byte $08, $02, $42
                 .byte $21, $02, $42
                 .byte $30, $02, $73 ; mark
-                .byte $49, $02, $42
+                .byte $49, $02, $6b ; mark
 
                 .byte $58, $02, $42 ; 7 lines
                 .byte $71, $02, $42
@@ -565,7 +565,7 @@ frame           .byte $00, $00, $70 ; top line
                 .byte $75, $03, $43
                 .byte $76, $03, $43
                 .byte $77, $03, $43
-                .byte $78, $03, $43
+                .byte $78, $03, $72 ; mark
                 .byte $79, $03, $43
                 .byte $7a, $03, $43
                 .byte $7b, $03, $43
@@ -573,7 +573,7 @@ frame           .byte $00, $00, $70 ; top line
                 .byte $7d, $03, $43
                 .byte $7e, $03, $43
                 .byte $7f, $03, $43
-                .byte $80, $03, $43
+                .byte $80, $03, $72 ; mark
                 .byte $81, $03, $43
                 .byte $82, $03, $43
                 .byte $83, $03, $43
