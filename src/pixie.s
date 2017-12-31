@@ -44,8 +44,8 @@ colramh         = $d8           ; high byte of color ram address
 
 ; name:         setbgcol
 ; description:  sets the border and background colors
-;               does not preserve register values
-; input:        -
+; input:        \1 - border color
+;               \2 - background color
 ; output:       -
 setbgcol .macro
                 lda #\1
@@ -53,8 +53,23 @@ setbgcol .macro
                 lda #\2
                 sta bgcol0
                 jsr clrscr
-                lda #\2
-                sta bgcol0
+.endm
+
+setspriteblock .macro
+                ; calculate sprite data pointer location
+                lda sproffset   ; offset low byte
+                sta addr
+                lda sproffset+1 ; offset high byte
+                sta addr+1
+                lda hibase      ; add the screen memory address
+                clc
+                adc addr+1      ; data pointer is in addr
+                sta addr+1
+
+                ; set data pointer to the sprite block
+                ldx #\1         ; sprite number
+                lda #\2         ; sprite block
+                sta (addr,x)
 .endm
 
 ; *** main ***
@@ -191,20 +206,8 @@ end
 ; output:       -
 initcursor
 .block
-                ; calculate sprite data pointer location
-                lda sproffset
-                sta addr
-                lda sproffset+1
-                sta addr+1
-                lda hibase      ; add the screen memory address
-                clc
-                adc addr+1      ; data pointer is in addr
-                sta addr+1
-
-                ; set data pointer to the sprite block
-                lda #$0b        ; sprite block 11 ($02c0-$02ff otherwise unused area)
-                ldx #$00        ; sprite #0
-                sta (addr,x)
+                ; set sprite data pointer location
+                #setspriteblock $00, $0b    ; sprite #0 uses block 11 ($02c0-$02ff otherwise unused area)
 
                 ; copy sprite data to block
 copydata        lda cursor,x
@@ -314,7 +317,10 @@ end
 ; name:         togglepixel
 ; description:  toggle a "pixel" in the sprite drawing area (toggles between a space and inverted space character)
 ; input:        -
-; output:       -
+; output:       a     - $a0 if pixel set, $20 if deleted
+;               addr  - the screen address of the current character
+;               cursy - cursor row
+;               cursx - cursor column
 togglepixel
 .block
                 clc
