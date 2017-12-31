@@ -26,6 +26,9 @@ spena           = $d015         ; sprite enable register
 sp0col          = $d027         ; sprite 0 color register
 sp0x            = $d000         ; sprite 0 x position
 sp0y            = $d001         ; sprite 0 y position
+sp1col          = $d028         ; sprite 1 color register
+sp1x            = $d002         ; sprite 1 x position
+sp1y            = $d003         ; sprite 1 y position
 msigx           = $d010         ; most significant bits of sprites 0-7 x position
 
 ; zero page pointers
@@ -36,10 +39,11 @@ addr            = $fd           ; screen address to put a character to
 bgcolor         = $00           ; background color
 frmcolor        = $01           ; frame color
 curscolor       = $07           ; cursor color
+prevcolor       = $01           ; preview sprite color
 
 ; other constants
 colramh         = $d8           ; high byte of color ram address
-
+ 
 ; *** macros ***
 
 ; name:         setbgcol
@@ -55,6 +59,11 @@ setbgcol .macro
                 jsr clrscr
 .endm
 
+; name:         setspriteblock
+; description:  sets the block for the given sprite
+; input:        \1 - sprite number (0-7)
+;               \2 - block number
+; output:       -
 setspriteblock .macro
                 ; calculate sprite data pointer location
                 lda sproffset   ; offset low byte
@@ -67,9 +76,25 @@ setspriteblock .macro
                 sta addr+1
 
                 ; set data pointer to the sprite block
-                ldx #\1         ; sprite number
+                ldy #\1         ; sprite number
                 lda #\2         ; sprite block
-                sta (addr,x)
+                sta (addr),y
+.endm
+
+; name:         togglesprite
+; description:  enables or disables a sprite
+; input:        \1 - sprite number (0-7)
+; output:       -
+togglesprite .macro
+                lda #$00
+                ldx #\1
+                inx
+                sec
+shiftleft       rol
+                dex 
+                bne shiftleft
+                eor spena
+                sta spena
 .endm
 
 ; *** main ***
@@ -88,12 +113,15 @@ setspriteblock .macro
                 #setbgcol bgcolor, bgcolor
                 jsr drawframe
                 jsr initcursor
+                jsr initpreview
                 jsr togglecursor
+                jsr togglepreview
                 jsr togglerepeat
                 jsr getkey
                 jsr togglerepeat
                 #setbgcol $0e, $06
                 jsr togglecursor
+                jsr togglepreview
                 rts
 
 ; *** subroutines ***
@@ -210,6 +238,7 @@ initcursor
                 #setspriteblock $00, $0b    ; sprite #0 uses block 11 ($02c0-$02ff otherwise unused area)
 
                 ; copy sprite data to block
+                ldx #$00
 copydata        lda cursor,x
                 sta $02c0,x
                 inx
@@ -241,9 +270,7 @@ copydata        lda cursor,x
 ; input:        -
 ; output:       -
 togglecursor
-                lda #$01
-                eor spena
-                sta spena
+                #togglesprite 0
                 rts
 
 ; name:         cursright
@@ -348,6 +375,46 @@ store
                 sta (addr),y
                 rts
 .bend
+
+; name:         initpreview
+; description:  initialize the preview sprite
+; input:        -
+; output:       -
+initpreview
+.block
+                ; sprite #1 in block 13 ($0340-$037f in tbuffer)
+                #setspriteblock $01, $0d
+                ; zero out the block
+                ldx #$00
+                lda #$00
+copydata        sta $0340,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata
+
+                ; set sprite color
+                lda #prevcolor
+                sta sp1col
+
+                ; set initial sprite position (272; 226)
+                lda #%00000010  ; x position 9th bit high
+                ora msigx
+                sta msigx
+		        
+                ldx #$10        ; x = %100010000 = 272; MSB in msigx
+                ldy #$e2        ; y = 226
+                stx sp1x
+                sty sp1y
+                rts                                          
+.bend
+
+; name:         togglepreview
+; description:  enable or disable the preview sprite
+; input:        -
+; output:       -
+togglepreview
+                #togglesprite 1
+                rts
 
 ; *** data ***
 
