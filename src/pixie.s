@@ -10,6 +10,13 @@
 clrscr          = $e544         ; initializes and clears the screen, puts cursor into home position
 getin           = $ffe4         ; get one byte from the input device
 plot            = $fff0         ; set cursor position if carry clear / get position if carry set
+setlfs          = $ffba         ; set logical file parameters
+setnam          = $ffbd         ; set filename
+open            = $ffc0         ; open logical file
+close           = $ffc3         ; close logical file
+chkout          = $ffc9         ; define output channel
+chrout          = $ffd2         ; output a character
+clrchn          = $ffcc         ; restore default devices
 
 ; BASIC/KERNAL variables and pointers
 pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
@@ -97,6 +104,14 @@ shiftleft       rol
                 sta spena
 .endm
 
+incaddr .macro
+                clc
+                inc addr
+                bne continue
+                inc addr+1
+continue
+.endm
+
 ; *** main ***
 
                 *=$0801
@@ -158,6 +173,8 @@ getkey
                 beq down
                 cmp #$20        ; space
                 beq draw
+                cmp #$5f        ; left arrow key: save
+                beq save
                 cmp #$0d        ; return
                 beq end                
                 bne getkey
@@ -172,6 +189,9 @@ down            jsr cursdown
                 jmp getkey                
 draw            jsr togglepixel
                 jsr updatepreview
+                jmp getkey
+save            jsr preparefile
+                ;jsr writefile
                 jmp getkey
 end                
                 rts
@@ -479,6 +499,122 @@ shiftleft       rol             ; set bit number a
                 rts
 .bend
 
+writefile
+.block
+                ; set filename
+                lda #fnameend-fname ; filename length
+                ldx #<fname     ; filename address low byte
+                ldy #>fname     ; filename address high byte
+                jsr setnam
+
+                ; set logical file parameters
+                lda #$01        ; logical file number
+                ldx #$08        ; device number
+                ldy #$02        ; secondary address (0-1 are reserved by the DOS, 15 is the command channel)
+                jsr setlfs
+
+                ; open file
+                jsr open
+
+                ; set the file as the output channel
+                ldx #$01        ; logical file number
+                jsr chkout
+
+                ; write contents to file
+                ldy #$00
+writeloop       lda prefix,y
+                beq closefile
+                jsr chrout
+                iny
+                bne writeloop
+
+closefile       lda #$01        ; logical file number
+                jsr close 
+
+                ; restore default i/o devices               
+                jsr clrchn
+                rts
+.bend
+
+preparefile
+.block
+                lda #<filecontents
+                sta addr
+                lda #>filecontents
+                sta addr+1
+
+                lda #$40
+                sta offset
+                lda #$03
+                sta offset+1
+
+                lda #$15
+copyprefix      pha
+                ldy #$00
+                ldx #$00
+copyloop        lda prefix,x
+                beq endcopy
+                sta (addr),y
+                inx
+                #incaddr
+                bne copyloop
+endcopy         ldx #$00               
+hexconv         lda #" "
+                sta (addr),y                
+                #incaddr
+                lda #"$"
+                sta (addr),y                
+                #incaddr
+                lda (offset),y
+                lsr
+                lsr
+                lsr
+                lsr                
+                jsr hexc
+                sta (addr),y
+                #incaddr
+                lda (offset),y
+                and #$0f
+                jsr hexc
+                sta (addr),y
+                #incaddr
+                inc offset
+                bne a01
+                inc offset+1
+a01                
+                inx
+                cpx #$03
+                beq endline
+                lda #","
+                sta (addr),y
+                #incaddr
+                jmp hexconv
+endline         lda #$0d
+                sta (addr),y
+                #incaddr
+                pla
+                tay
+                dey
+                tya
+                bne copyprefix
+                lda #$00        ; null terminated string
+                ldy #$00
+                sta (addr),y
+                rts
+.bend
+
+hexc
+.block              
+                cmp #$0a		; subroutine converts 0-f to a character
+                bcs hexa
+                clc             ; digit 0-9
+                adc #$30        ; "0"
+                bne hexb        ; unconditional jump as z=0 always
+hexa            clc
+                adc #$37   		; digit a-f
+hexb            rts
+.bend    
+
 ; *** data ***
 
                 ; The frame marking the boundaries of the sprite drawing area.
@@ -604,3 +740,10 @@ cursor          .byte $ff, $00, $00
                 ; current position of the cursor sprite in screen columns and rows
 cursx           .byte $01                
 cursy           .byte $01
+
+fname           .text "sprite,s,w"
+fnameend
+
+prefix          .null ".byte"
+
+filecontents
