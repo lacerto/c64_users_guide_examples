@@ -475,15 +475,11 @@ nooverflow
                 sec
                 sbc #$08        ; a-=8
                 clc
-a02             inc addr        ; addr++
-                bcc a01
-                inc addr+1
+                #incpointer addr ; addr++
 a01             sec             ; a-=8; addr++
                 sbc #$08
                 clc
-                inc addr
-                bcc continue
-                inc addr+1
+                #incpointer addr
 
                 ; toggle bit at addr
 continue        sec
