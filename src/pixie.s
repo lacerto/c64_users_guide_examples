@@ -199,7 +199,7 @@ draw            jsr togglepixel
                 jsr updatepreview
                 jmp getkey
 save            jsr preparefile
-                ;jsr writefile
+                jsr writefile
                 jmp getkey
 end                
                 rts
@@ -533,6 +533,10 @@ shiftleft       rol             ; set bit number a
                 rts
 .bend
 
+; name:         writefile
+; description:  write the prepared string to a sequential file
+; input:        filecontents - a null terminated string beginning at this address
+; output:       -
 writefile
 .block
                 ; set filename
@@ -555,11 +559,15 @@ writefile
                 jsr chkout
 
                 ; write contents to file
-                ldy #$00
-writeloop       lda prefix,y
+                lda #<filecontents
+                sta addr
+                lda #>filecontents
+                sta addr+1
+writeloop       ldy #$00
+                lda (addr),y
                 beq closefile
                 jsr chrout
-                iny
+                #incpointer addr
                 bne writeloop
 
 closefile       lda #$01        ; logical file number
