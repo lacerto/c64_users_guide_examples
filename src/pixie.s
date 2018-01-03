@@ -104,11 +104,15 @@ shiftleft       rol
                 sta spena
 .endm
 
-incaddr .macro
+; name:         incpointer
+; description:  increases a two byte address pointer
+; input:        \1 - pointer (lower byte)
+; output:       -
+incpointer .macro
                 clc
-                inc addr
-                bne continue
-                inc addr+1
+                inc \1          ; increase low byte
+                bne continue    ; did it turn zero? if not continue
+                inc \1+1        ; if yes increase the high byte, too
 continue
 .endm
 
@@ -536,82 +540,90 @@ closefile       lda #$01        ; logical file number
                 rts
 .bend
 
+; name:         preparefile
+; description:  prepare the string that will be written to a file
+;               it contains the sprite data in a format suitable for the assembler
+;               so that the file can be readily used as an include or its contents
+;               can be simply pasted into an assembly program source
+; input:        -
+; output:       -
 preparefile
 .block
-                lda #<filecontents
-                sta addr
+                lda #<filecontents  ; set up the zero page pointers
+                sta addr            ; addr points to the beginning of the string
                 lda #>filecontents
                 sta addr+1
 
-                lda #$40
+                lda #$40            ; offset points to the sprite block where the edited sprite info lies
                 sta offset
                 lda #$03
                 sta offset+1
 
-                lda #$15
-copyprefix      pha
+                lda #$15            ; the output is organized in 21 lines of .byte directives for the assembler
+copyprefix      pha                 ; with each line containing 3 bytes of sprite data (24x21 bits)
                 ldy #$00
                 ldx #$00
-copyloop        lda prefix,x
+copyloop        lda prefix,x        ; first copy the ".byte" prefix at the beginning of each line
                 beq endcopy
                 sta (addr),y
                 inx
-                #incaddr
+                #incpointer addr
                 bne copyloop
 endcopy         ldx #$00               
-hexconv         lda #" "
+hexconv         lda #" "            ; add a space
                 sta (addr),y                
-                #incaddr
-                lda #"$"
+                #incpointer addr
+                lda #"$"            ; add $ as a hexadecimal value follows
                 sta (addr),y                
-                #incaddr
-                lda (offset),y
-                lsr
+                #incpointer addr
+                lda (offset),y      ; load a sprite data byte from the block
+                lsr                 ; move the upper nybble to the lower
                 lsr
                 lsr
                 lsr                
-                jsr hexc
+                jsr hexc            ; convert the upper nybble to a hex value character
+                sta (addr),y        ; store it in our output string
+                #incpointer addr
+                lda (offset),y      ; load the byte again
+                and #$0f            ; but this time mask out the upper nybble converting only the lower one
+                jsr hexc            ; to hexadecimal
                 sta (addr),y
-                #incaddr
-                lda (offset),y
-                and #$0f
-                jsr hexc
-                sta (addr),y
-                #incaddr
-                inc offset
-                bne a01
-                inc offset+1
-a01                
+                #incpointer addr
+                #incpointer offset  ; move to the next byte in the sprite block
                 inx
-                cpx #$03
+                cpx #$03            ; convert 3 bytes for each line
                 beq endline
-                lda #","
+                lda #","            ; add a comma between values
                 sta (addr),y
-                #incaddr
+                #incpointer addr
                 jmp hexconv
-endline         lda #$0d
+endline         lda #$0d            ; return at the end of line
                 sta (addr),y
-                #incaddr
-                pla
+                #incpointer addr
+                pla                 ; pull the line counter back from the stack
                 tay
-                dey
+                dey                 ; decrement it
                 tya
-                bne copyprefix
-                lda #$00        ; null terminated string
+                bne copyprefix      ; line counter != 0? -> process the next line
+                lda #$00            ; null terminated string
                 ldy #$00
                 sta (addr),y
                 rts
 .bend
 
+; name:         hexc
+; description:  convert the lower 4 bits of the accumulator to a hexadecimal character
+; input:        a - the value to be converted (only the lower 4 bits)
+; output:       a - the character representing the value in hexadecimal
 hexc
 .block              
-                cmp #$0a		; subroutine converts 0-f to a character
+                cmp #$0a		; a > 9? -> it must be converted to a-f
                 bcs hexa
                 clc             ; digit 0-9
-                adc #$30        ; "0"
+                adc #$30        ; add "0"
                 bne hexb        ; unconditional jump as z=0 always
 hexa            clc
-                adc #$37   		; digit a-f
+                adc #$37   		; e.g. $37 + $0a = $41 (="A")
 hexb            rts
 .bend    
 
@@ -741,9 +753,12 @@ cursor          .byte $ff, $00, $00
 cursx           .byte $01                
 cursy           .byte $01
 
+                ; filename for saving the sprite data
 fname           .text "sprite,s,w"
 fnameend
 
+                ; the prefix for each line that will be written to file
 prefix          .null ".byte"
 
+                ; a null terminated string will be placed at this address
 filecontents
