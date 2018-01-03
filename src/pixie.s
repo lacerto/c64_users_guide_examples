@@ -17,6 +17,7 @@ close           = $ffc3         ; close logical file
 chkout          = $ffc9         ; define output channel
 chrout          = $ffd2         ; output a character
 clrchn          = $ffcc         ; restore default devices
+strout          = $ab1e         ; print 0 terminated string
 
 ; BASIC/KERNAL variables and pointers
 pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
@@ -50,6 +51,7 @@ prevcolor       = $01           ; preview sprite color
 
 ; other constants
 colramh         = $d8           ; high byte of color ram address
+infocount       = $1c           ; number of table entries for displaying info
  
 ; *** macros ***
 
@@ -131,6 +133,7 @@ continue
                 *=$080d         ; sys2061
                 #setbgcol bgcolor, bgcolor
                 jsr drawframe
+                jsr printusage
                 jsr initcursor
                 jsr initpreview
                 jsr togglecursor
@@ -253,6 +256,36 @@ c03
 end
                 rts
 .bend                
+
+; name:         printusage
+; description:  print some usage information
+; input:        -
+; output:       -
+printusage
+.block
+                lda #$00        ; zero out the table pointer
+                sta tblptr
+                lda #$01        ; initial position is 27,1 (zero based)
+                sta cursy
+                lda #$1b
+                sta cursx
+loop            clc
+                ldx cursy
+                ldy cursx
+                jsr plot        ; jump to the cursx/cursy position
+                inc cursy       ; advance to the next line
+                ldx tblptr
+                lda infotbl,x   ; get the low byte of the string's address
+                inx
+                ldy infotbl,x   ; high byte
+                inx
+                stx tblptr      ; store pointer
+                jsr strout      ; print the null terminated string
+                ldx tblptr
+                cpx #infocount  ; did we reach the end of the table?
+                bne loop        ;   no -> print next line
+                rts
+.bend
 
 ; name:         initcursor
 ; description:  initializes the cursor sprite
@@ -749,6 +782,28 @@ cursor          .byte $ff, $00, $00
                 ; current position of the cursor sprite in screen columns and rows
 cursx           .byte $01                
 cursy           .byte $01
+
+                ; usage information
+info00          .null "    pixie"
+info01          .null "sprite editor"
+info02          .null " "
+info03          .null "w a s d:"
+info04          .null " move cursor"
+info05          .null " "
+info06          .null "space:"
+info07          .null " toggle pixel"
+info08          .null " "
+info09          .byte $5f
+                .null ":"
+info10          .null " save"
+info11          .null " "
+info12          .null "return:"
+info13          .null " exit"
+
+infotbl         .word info00, info01, info02, info03, info04, info05
+                .word info06, info07, info08, info09, info10, info11
+                .word info12, info13
+tblptr          .byte $00
 
                 ; filename for saving the sprite data
 fname           .text "sprite,s,w"
