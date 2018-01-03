@@ -97,10 +97,10 @@ togglesprite .macro
                 ldx #\1
                 inx
                 sec
-shiftleft       rol
-                dex 
+shiftleft       rol             ; put a 1 in the right position indicated by the sprite number
+                dex             ; e.g. for sprite #2 bit 2 will be high
                 bne shiftleft
-                eor spena
+                eor spena       ; toggle the bit in the sprite enable register using xor
                 sta spena
 .endm
 
@@ -166,7 +166,7 @@ store           sta rptflag
 ; output:       -
 getkey
 .block
-                jsr getin
+                jsr getin       ; get a char from the keyboard
                 cmp #$44        ; D
                 beq right
                 cmp #$41        ; A
@@ -183,6 +183,7 @@ getkey
                 beq end                
                 bne getkey
 
+                ; handle key press events
 right           jsr cursright
                 jmp getkey                
 left            jsr cursleft
@@ -208,7 +209,7 @@ end
 ; output:       -
 drawframe
 .block                
-                lda #<frame
+                lda #<frame     ; store the address of the frame data in the zero page pointer
                 sta offset
                 lda #>frame
                 sta offset+1
@@ -216,39 +217,39 @@ drawframe
                 ldy #$00
                 ldx #$00
 copyscr                
-                lda (offset),y
+                lda (offset),y  ; first two bytes are the screen address offsets
                 sta addr
                 iny
                 bne c01
                 inc offset+1
 c01                
                 lda (offset),y
-                bmi end
+                bmi end         ; is bit 7 high? -> end of frame data
                 iny
                 bne c02
                 inc offset+1
 c02             
-                pha
-                sta addr+1
-                lda hibase
+                pha             ; push the offset's high byte to the stack we'll need it to calculate color ram address
+                sta addr+1      ; store it also in the pointer
+                lda hibase      ; load the current screen address' high byte
                 clc
-                adc addr+1
+                adc addr+1      ; add it the the offset
                 sta addr+1
-                lda (offset),y
+                lda (offset),y  ; get the screen code to be stored at the calculated address
                 iny
                 bne c03
                 inc offset+1
 c03                
-                sta (addr,x)
-                pla
+                sta (addr,x)    ; write the screen code to the screen mem
+                pla             ; get the offset's high byte back from the stack
                 sta addr+1
-                lda #colramh
+                lda #colramh    ; load the color ram's high byte
                 clc
-                adc addr+1
+                adc addr+1      ; add it to the offset
                 sta addr+1
                 lda #frmcolor
-                sta (addr,x)
-                jmp copyscr
+                sta (addr,x)    ; store the color byte in the color ram
+                jmp copyscr     ; copy the next byte of the frame to the screen mem
 end
                 rts
 .bend                
@@ -378,10 +379,10 @@ togglepixel
                 clc
                 ldx cursy
                 ldy cursx
-                jsr plot
-                lda pnt+1
-                sta addr+1
-                lda pnt
+                jsr plot        ; move the cursor to the position stored in cursx/cursy
+                lda pnt+1       ; the plot routine updates pnt and pntr
+                sta addr+1      ; so for getting the address where the cursor is currently positioned
+                lda pnt         ; we only need to add pntr to pnt
                 clc
                 adc pntr
                 bcc nooverflow
@@ -389,15 +390,15 @@ togglepixel
 nooverflow
                 sta addr
                 ldy #$00
-                lda (addr),y
-                cmp #$a0
-                beq delpixel
-                lda #$a0
+                lda (addr),y    ; let's see what is under the cursor
+                cmp #$a0        ; is it the screen code of a reversed space?
+                beq delpixel    ;   yes -> delete it
+                lda #$a0        ;   no -> put it here
                 bne store
 delpixel                
-                lda #$20
+                lda #$20        ; overwrite the current character with a simple space
 store
-                sta (addr),y
+                sta (addr),y    ; store the screen code at the calculated screen address
                 rts
 .bend
 
