@@ -73,9 +73,14 @@ byt2stra
                 stx $fb         ; store the address of the resulting string on the zero page
                 sty $fc
                 pha             ; push the byte on the stack
+                ldy #$00        ; fill the first two bytes with spaces
+                lda #$20
+                sta ($fb),y
+                iny
+                sta ($fb),y                
                 ldy #$03        ; store $00 at the end of the string (str+3)
                 lda #$00
-                sta ($fb), y
+                sta ($fb),y
                 pla             ; get the byte to convert back from the stack
                 ldx #$00        ; X = 0
 loop            jsr div10       ; perform A/10; quotient will be in Y, remainder in A                
@@ -84,19 +89,11 @@ loop            jsr div10       ; perform A/10; quotient will be in Y, remainder
                 tya             ; transfer quotient from Y to A
                 bne loop        ; if A != 0 then jump to loop
                 txa             ; X -> A
-                eor #$03        ; calculate 3-X
+                eor #$03        ; calculate 3-X (position in the string where the first digit will be placed)
                 tay             ; transfer the result into Y
-                beq loop2       ; jump if Y == 0
-                pha             ; push the result of 3-X to the stack
-                lda #$20        ; PETSCII space
-fill            dey             ; Y--
-                sta ($fb), y    ; fill the leading bytes of the string with 3-X spaces
-                bne fill        ; jump if Y != 0
-                pla             ; get the result of 3-X back from the stack
-                tay             ; A -> Y, this is the position to store the first character
 loop2           pla             ; get the number at the highest decimal position
                 ora #$30        ; convert it to PETSCII (https://en.wikipedia.org/wiki/PETSCII)
-                sta ($fb), y    ; store it in the string
+                sta ($fb),y     ; store it in the string
                 iny             ; Y++
                 dex             ; X--
                 bne loop2       ; while x != 0 jump to loop2
