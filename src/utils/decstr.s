@@ -4,30 +4,30 @@
 
 ; *** labels ***
 
-chrgot			= $79       ; read current BASIC text character again
-strout      	= $ab1e     ; print str in A/Y
+chrgot          = $79       ; read current BASIC text character again
+strout          = $ab1e     ; print str in A/Y
 chrout          = $ffd2     ; send a char in A (PETSCII) to the current output device
-chkcom  		= $aefd     ; check for and skip comma; SYNTAX ERROR if the next char is not a comma
-getbyt			= $b79e     ; get a byte parameter from BASIC text into X
+chkcom          = $aefd     ; check for and skip comma; SYNTAX ERROR if the next char is not a comma
+getbyt          = $b79e     ; get a byte parameter from BASIC text into X
                             ; (TYPE MISMATCH if not a number, ILLEGAL QUANTITY if not in 0-255,
                             ; floating point numbers are truncated)
 
 ; *** main ***
 
                 *=$0334         ; sys820
-getbyte			jsr chrgot      ; what was the last character again?
-				beq eolerror    ; if 0 then it is the end of the line -> parameter missing				
-				jsr chkcom      ; check comma
-				jsr getbyt      ; get a byte parameter (stored in X)
-				txa             ; X -> A
+getbyte         jsr chrgot      ; what was the last character again?
+                beq eolerror    ; if 0 then it is the end of the line -> parameter missing				
+                jsr chkcom      ; check comma
+                jsr getbyt      ; get a byte parameter (stored in X)
+                txa             ; X -> A
                 jsr byt2str     ; convert the byte in A to string and print it
 end             rts             ; return
 
 ; Parameter missing error.	
-eolerror		lda #<eolerrstr ; string addr low byte
-				ldy #>eolerrstr ; string addr high byte
-				jsr strout      ; print str in A/Y
-				jmp end         ; jump to end
+eolerror        lda #<eolerrstr ; string addr low byte
+                ldy #>eolerrstr ; string addr high byte
+                jsr strout      ; print str in A/Y
+                jmp end         ; jump to end
 
 ; *** subroutines ***
 
@@ -36,7 +36,7 @@ eolerror		lda #<eolerrstr ; string addr low byte
 ; input:        a byte in A
 ; output:       - (prints the string directly)
 ; see also/thx: https://www.c64-wiki.de/wiki/Assembler_Beispiel_Division
-byt2str         
+byt2str
 .block
                 ldx #$00        ; X = 0
 loop            jsr div10       ; perform A/10; quotient will be in Y, remainder in A
@@ -72,6 +72,6 @@ loop            iny             ; Y++
 ; *** data ***
 
 eolerrstr		.byte $0d
-				.null "?parameter missing  error"
+                .null "?parameter missing  error"
 
 str
