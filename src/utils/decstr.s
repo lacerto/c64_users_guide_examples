@@ -20,7 +20,15 @@ getbyte         jsr chrgot      ; what was the last character again?
                 jsr chkcom      ; check comma
                 jsr getbyt      ; get a byte parameter (stored in X)
                 txa             ; X -> A
+                pha             ; push the parameter onto the stack
                 jsr byt2str     ; convert the byte in A to string and print it
+                lda #$0d        ; print a CR
+                jsr chrout
+                pla             ; get the parameter from stack
+                ldx #<str       ; store the resulting null terminated string at this address
+                ldy #>str
+                jsr byt2stra    ; convert to a right aligned string with leading spaces
+                jsr strout      ; the address is in A/Y upon return from byt2stra, print
 end             rts             ; return
 
 ; Parameter missing error.	
@@ -49,6 +57,51 @@ loop2           pla             ; get the number at the highest decimal position
                 jsr chrout      ; send char in A to the screen
                 dex             ; X--
                 bne loop2       ; while x != 0 jump to loop2
+                rts
+.bend
+
+; name:         byt2stra
+; description:  converts a byte to a right aligned 
+;               null terminated string
+;               destroys X and Y
+; input:        a byte in A, storage address in X/Y (low/high)
+; output:       address of a null terminated 4 byte string in A/Y (ready to print using strout)
+; resources:    $fb and $fc from FREEZP
+; see also/thx: https://www.c64-wiki.de/wiki/Assembler_Beispiel_Division
+byt2stra
+.block
+                stx $fb         ; store the address of the resulting string on the zero page
+                sty $fc
+                pha             ; push the byte on the stack
+                ldy #$03        ; store $00 at the end of the string (str+3)
+                lda #$00
+                sta ($fb), y
+                pla             ; get the byte to convert back from the stack
+                ldx #$00        ; X = 0
+loop            jsr div10       ; perform A/10; quotient will be in Y, remainder in A                
+                pha             ; push the remainder on the stack
+                inx             ; X++ (X counts the decimal places)
+                tya             ; transfer quotient from Y to A
+                bne loop        ; if A != 0 then jump to loop
+                txa             ; X -> A
+                eor #$03        ; calculate 3-X
+                tay             ; transfer the result into Y
+                beq loop2       ; jump if Y == 0
+                pha             ; push the result of 3-X to the stack
+                lda #$20        ; PETSCII space
+fill            dey             ; Y--
+                sta ($fb), y    ; fill the leading bytes of the string with 3-X spaces
+                bne fill        ; jump if Y != 0
+                pla             ; get the result of 3-X back from the stack
+                tay             ; A -> Y, this is the position to store the first character
+loop2           pla             ; get the number at the highest decimal position
+                ora #$30        ; convert it to PETSCII (https://en.wikipedia.org/wiki/PETSCII)
+                sta ($fb), y    ; store it in the string
+                iny             ; Y++
+                dex             ; X--
+                bne loop2       ; while x != 0 jump to loop2
+                lda $fb         ; address of the string in A/Y
+                ldy $fc
                 rts
 .bend
 
