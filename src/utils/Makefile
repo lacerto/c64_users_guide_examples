@@ -2,9 +2,7 @@ CC 			= tmpx
 DiskFile	= utils.d64
 
 .PHONY: all
-all: decstr.prg
-
-decstr.prg: decstr.s
+all: decstr.prg decstr2.prg
 
 .PHONY: clean
 clean:
