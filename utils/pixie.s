@@ -22,6 +22,7 @@ strout          = $ab1e         ; print 0 terminated string
 ; BASIC/KERNAL variables and pointers
 pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
 pntr            = $d3           ; cursor column in the current screen line
+blnsw           = $cc           ; cursor blink enable (0 = flash cursor)
 hibase          = $0288         ; top page of screen memory
 rptflag         = $028a         ; flag for which keys do repeat ($80 - all; default value is $00 which allows only
                                 ;   the cursor movement keys, insert/delete key, and the space bar to repeat)
@@ -188,18 +189,38 @@ getkey
 
                 ; handle key press events
 right           jsr cursright
+                jsr updstatus
                 jmp getkey                
 left            jsr cursleft
+                jsr updstatus
                 jmp getkey                
 up              jsr cursup
+                jsr updstatus
                 jmp getkey                
 down            jsr cursdown
+                jsr updstatus
                 jmp getkey                
 draw            jsr togglepixel
                 jsr updatepreview
                 jmp getkey
-save            jsr preparefile
+save            
+                lda blnsw
+                pha
+                lda #<filter
+                ldy #>filter
+                ldx #$10
+                jsr getfilename
+                pla
+                sta blnsw
+                jsr preparefile
                 jsr writefile
+                clc
+                ldx #24
+                ldy #0
+                jsr plot
+                lda #<filewrtn
+                ldy #>filewrtn
+                jsr strout
                 jmp getkey
 end                
                 rts
@@ -435,6 +456,22 @@ store
                 rts
 .bend
 
+; name:         updstatus
+; description:  update the status bar
+; input:        -
+; output:       -
+updstatus
+.block
+                clc
+                ldx #24
+                ldy #0
+                jsr plot
+                lda #<emptyline
+                ldy #>emptyline
+                jsr strout
+                rts
+.bend
+
 ; name:         initpreview
 ; description:  initialize the preview sprite
 ; input:        -
@@ -533,14 +570,111 @@ shiftleft       rol             ; set bit number a
                 rts
 .bend
 
+; name:         getfilename
+; description:  This input routine allows only the input of characters defined in a filter list.
+;               The maximum allowed number of characters input can also be specified.
+;               Note: the null terminating the input string is not included in the maximum length!
+;               Thus, the resulting string needs a maximum of maxchars+1 bytes of storage.
+; input:        X - the maximum allowed length of the input string
+;               A/Y - pointer to the filter list, a null terminated string containing the allowed chars
+;                     allows to use different filters at each call
+; output:       the input string at the fname address    (null terminated, ready to print)
+; see also/thx: https://codebase64.org/doku.php?id=base:robust_string_input
+getfilename
+.block                
+                stx maxchars        ; store the max number of characters allowed
+                sta filtertext+1    ; self modifying code
+                sty filtertext+2
+                clc
+                ldx #24
+                ldy #0
+                jsr plot
+                lda #<prompt        ; print prompt
+                ldy #>prompt
+                jsr strout
+                lda #$00            ; characters received
+                sta charcount
+                sta blnsw           ; enable cursor blink
+inputloop       
+                jsr getin           ; get a character from the input device
+                beq inputloop       ; nothing received, loop
+
+                cmp #$14            ; handle delete
+                beq delete
+                cmp #$0d            ; handle return
+                beq done
+
+                ldy charcount       ; max length reached?
+                cpy maxchars        ; then loop and allow only delete and return
+                beq inputloop
+
+                sta lastchar        ; store the last character received
+
+                ldx #$00            ; index in the filter text
+filtertext      lda $ffff,x         ; $ffff is overwritten! see above
+                beq inputloop       ; end of filter list reached (null terminated)
+                cmp lastchar        ; compare to the last character
+                beq inputok         ; char found in the filter list -> OK
+                inx                 ; X++
+                jmp filtertext      ; loop
+
+inputok
+                lda lastchar        ; get the last character
+                ldy charcount       ; count functions as the index
+                sta fname,y         ; store the character
+                jsr chrout          ; echo it on the screen
+                cpy maxchars        ; max length reached?
+                beq inputloop       ; yes -> back to the main input loop
+                inc charcount       ; no -> count++
+                jmp inputloop       ; back to the main input loop
+
+delete
+                lda charcount
+                bne dodel           ; count != 0 then perform delete
+                jmp inputloop       ; otherwise back to the main loop
+dodel
+                dec charcount       ; count--
+                ldy charcount
+                lda #$00
+                sta fname,y         ; zero out the current char in the string
+                lda #$14            ; print delete
+                jsr chrout
+                jmp inputloop
+
+done
+                ldy charcount       ; Y = count
+                beq firstchar       ; Y == 0 then jump
+                lda #","
+                sta fname,y
+                iny
+                lda #"s"
+                sta fname,y
+                iny
+                lda #","
+                sta fname,y
+                iny
+                lda #"w"
+                sta fname,y
+                iny
+firstchar       lda #$00            ; add the terminating null
+                sta fname,y
+                rts
+.bend
+
 ; name:         writefile
 ; description:  write the prepared string to a sequential file
 ; input:        filecontents - a null terminated string beginning at this address
 ; output:       -
 writefile
 .block
-                ; set filename
-                lda #fnameend-fname ; filename length
+                ldx #$00
+loop            lda fname,x
+                beq a01
+                inx
+                jmp loop
+
+                ; set filename                
+a01             txa             ; filename length
                 ldx #<fname     ; filename address low byte
                 ldy #>fname     ; filename address high byte
                 jsr setnam
@@ -813,9 +947,17 @@ infotbl         .word info00, info01, info02, info03, info04, info05
                 .word info12, info13
 tblptr          .byte $00
 
+prompt          .null "file name: "
+filter          .null " abcdefghijklmnopqrstuvwxyz1234567890"
+maxchars        .byte $00
+charcount       .byte $00
+lastchar        .byte $00
+
                 ; filename for saving the sprite data
-fname           .text "sprite,s,w"
-fnameend
+fname           .repeat 22, $00
+filewrtn        .null "file written to disk                   "
+
+emptyline       .null "                                       "
 
                 ; the prefix for each line that will be written to file
 prefix          .null ".byte"
