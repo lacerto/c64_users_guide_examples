@@ -179,6 +179,14 @@ getkey
                 beq up
                 cmp #$53        ; S
                 beq down
+                cmp #$1d        ; right
+                beq right
+                cmp #$9d        ; left
+                beq left
+                cmp #$91        ; up
+                beq up
+                cmp #$11        ; down
+                beq down
                 cmp #$20        ; space
                 beq draw
                 cmp #$5f        ; left arrow key: save
