@@ -1,8 +1,10 @@
 CC 			= tmpx
 DiskFile	= ../disk/utils.d64
 
+PRGS = $(wildcard *.s)
+
 .PHONY: all
-all: str2fp.prg decstr.prg decstr2.prg strinput.prg
+all: $(PRGS:.s=.prg)
 
 .PHONY: clean
 clean:
