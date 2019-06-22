@@ -1,8 +1,8 @@
 CC 			= tmpx
-DiskFile	= utils.d64
+DiskFile	= ../disk/utils.d64
 
 .PHONY: all
-all: decstr.prg decstr2.prg strinput.prg
+all: str2fp.prg decstr.prg decstr2.prg strinput.prg
 
 .PHONY: clean
 clean:
