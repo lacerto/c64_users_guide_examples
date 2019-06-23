@@ -65,8 +65,10 @@ copydata        lda spritedata,x
                 sta yxpand
 
                 ; set sprite coordinates
-                lda #100
+                lda #140
                 sta sp0y
+
+                lda #129
                 sta sp1y
 
                 lda #106
@@ -79,9 +81,34 @@ copydata        lda spritedata,x
 inputloop       jsr getin
                 beq inputloop
 
+                ; disable all sprites
+                lda #$00
+                sta spena
+
                 rts                
 
 ; *** data ***
 
                 ; paste here the sprite data to test (63 bytes)
 spritedata      
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $03, $e0, $00
+                .byte $07, $f3, $e0
+                .byte $0f, $ff, $f0
+                .byte $0f, $ff, $f8
+                .byte $3e, $f7, $f8
+                .byte $7d, $6b, $fc
+                .byte $7f, $ff, $fe
+                .byte $ff, $ff, $ff
+                .byte $ff, $6f, $ff
+                .byte $7f, $9f, $fe
+                .byte $1f, $ff, $f8
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
