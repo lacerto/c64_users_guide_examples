@@ -9,3 +9,4 @@ faddh | Prints the numbers from 1 to 10 by 0.5 | $0334 = 820 | ```LOAD"FADDH",8,
 color-bars | Prints randomly colored bars | $02a8 = 680 | ```LOAD"COLOR-BARS",8,1```<br>```SYS680``` | How to use RND from assembly
 bouncing-ball | Shows a moving ball that bounces back if it hits the screen border | $0334 = 820 | ```LOAD"BOUNCING-BALL",8,1```<br>```SYS820``` | Get screen size, change border and background colors, write screen codes directly to screen memory
 bouncing-ball2 | Shows a moving ball that bounces back if it hits the screen border or some randomly placed obstacles | $080d = 2061 | ```LOAD"BOUNCING-BALL2",8```<br>```RUN``` | Has a BASIC stub in front of it and is placed in BASIC memory as it outgrew the cassette buffer
+balloon | Sets sprite #2 to a balloon shape and moves it diagonally on the screen in an endless loop. | $0825 = 2085 | ```LOAD"BALLOON",8```<br>```RUN``` | Use RUN/STOP+RESTORE to stop the animation.
