@@ -17,6 +17,7 @@ sp2x            = $d004         ; sprite 2 x position
 sp2y            = $d005         ; sprite 2 y position
 msigx           = $d010         ; most significant bits of sprites 0-7 x position
 
+sprb13          = 13*64         ; sprite block #13 = 13*64 = 832 = $0340 ($33C-$3FB TBUFFER)
 waitcount       = $0a           ; count for the busy wait loop
 
 ; *** macros ***
@@ -74,10 +75,10 @@ a00
                 *=$0825         ; sys2085
                 jsr clrscr
 
-                ; copy sprite data to block #13 = 13*64 = 832 = $0340 ($33C-$3FB TBUFFER)
+                ; copy sprite data to block #13
                 ldx #$00
 copydata        lda balloon,x
-                sta $0340,x
+                sta sprb13,x
                 inx
                 cpx #63         ; copy 63 bytes
                 bne copydata
