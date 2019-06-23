@@ -18,6 +18,8 @@ sp2x            = $d004         ; sprite 2 x position
 sp2y            = $d005         ; sprite 2 y position
 sp3x            = $d006         ; sprite 3 x position
 sp3y            = $d007         ; sprite 3 y position
+sp4x            = $d008         ; sprite 4 x position
+sp4y            = $d009         ; sprite 4 y position
 msigx           = $d010         ; most significant bits of sprites 0-7 x position
 xxpand          = $d01d         ; sprite horizontal expansion register
 yxpand          = $d017         ; sprite vertical expansion register
@@ -94,23 +96,30 @@ copydata        lda balloon,x
                 sta sprdbp,x
                 ldx #$03        ; sprite #3
                 sta sprdbp,x    ; also block #13
+                ldx #$04        ; sprite #4
+                sta sprdbp,x    ; also block #13
 
                 ; enable sprites #2 and #3
-                lda #%00001100
+                lda #%00011100
                 sta spena
 
-                ; expand sprite #2 in x and y direction
-                lda #%00000100
+                ; expand sprites #2 and #3 in x and y direction
+                lda #%00001100
                 sta xxpand
                 sta yxpand
 
+                ; set sprite #4 y coordinate to 100
+                lda #100
+                sta sp4y
+                
                 ; move sprite
 movesprite                
                 ldx #$00
 moveloop                
                 stx sp2x        ; update sprite #2 x coordinate
                 stx sp3x        ; update sprite #3 x coordinate
-                stx sp2y        ; update sprite #2 y coordinate
+                stx sp4x        ; update sprite #4 x coordinate
+                stx sp2y        ; update sprite #2 y coordinate                
                 stx freezp
                 lda #190                
                 sec
