@@ -16,6 +16,8 @@ spena           = $d015         ; sprite enable register
 sp2col          = $d029         ; sprite 2 color register
 sp2x            = $d004         ; sprite 2 x position
 sp2y            = $d005         ; sprite 2 y position
+sp3x            = $d006         ; sprite 3 x position
+sp3y            = $d007         ; sprite 3 y position
 msigx           = $d010         ; most significant bits of sprites 0-7 x position
 xxpand          = $d01d         ; sprite horizontal expansion register
 yxpand          = $d017         ; sprite vertical expansion register
@@ -90,12 +92,15 @@ copydata        lda balloon,x
                 ldx #$02        ; sprite #2
                 lda #$0d        ; sprite block #13
                 sta sprdbp,x
+                ldx #$03        ; sprite #3
+                sta sprdbp,x    ; also block #13
 
-                ; enable sprite #2
-                lda #%00000100
+                ; enable sprites #2 and #3
+                lda #%00001100
                 sta spena
 
                 ; expand sprite #2 in x and y direction
+                lda #%00000100
                 sta xxpand
                 sta yxpand
 
@@ -104,10 +109,17 @@ movesprite
                 ldx #$00
 moveloop                
                 stx sp2x        ; update sprite #2 x coordinate
+                stx sp3x        ; update sprite #3 x coordinate
                 stx sp2y        ; update sprite #2 y coordinate
+                stx freezp
+                lda #190                
+                sec
+                sbc freezp
+                sta sp3y        ; update sprite #3 y coordinate
+
                 #busywait waitcount ; delay a bit
                 inx
-                cpx #201
+                cpx #191
                 bne moveloop
 
                 jmp movesprite  ; endless loop just like in the BASIC example
