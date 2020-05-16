@@ -18,7 +18,25 @@ plot            = $e50a
 
 ; *** main ***
 
-                *=$c000         ; sys49152
+                *=$0801
+                ; 1 REM VIEW CHARGEN
+                .word $0814     ; address of next line
+                .word $0001     ; line number (1)
+                .byte $8f       ; rem token
+                .text " view chargen"
+                .byte $00       ; end of line
+
+                ; 2020 SYS2090
+                .word $081e     ; address of next line
+                .word $07e4     ; line number (2020)
+                .byte $9e       ; sys token
+                .text "2080"    ; address of ML program ($0820)
+                .byte $00       ; end of line
+
+                ; end of BASIC program
+                .word $0000
+
+                *=$0820
                 jsr switchbank
                 jsr clrscr
 
