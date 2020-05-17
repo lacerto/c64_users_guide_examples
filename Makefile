@@ -5,8 +5,11 @@ PRGS = $(addprefix $(PrgDir)/, $(notdir $(SRCS:.s=.prg)))
 
 DiskFile = disk/examples.d64
 
-.PHONY: all
-all: $(PRGS)
+.PHONY: all utils
+all: $(PRGS) utils
+
+utils:
+	$(MAKE) -C utils
 
 $(PrgDir)/%.prg: $(SourceDir)/%.s
 	tmpx -i $< -o $@
@@ -15,4 +18,5 @@ $(PrgDir)/%.prg: $(SourceDir)/%.s
 
 .PHONY: clean
 clean:
-	rm $(PrgDir)/*.prg
+	rm -f $(PrgDir)/*.prg
+	rm -f utils/*.prg
