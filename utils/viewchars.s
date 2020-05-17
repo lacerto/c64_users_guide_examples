@@ -3,20 +3,73 @@
 ; Switch to VIC Bank #3, copy CHARGEN to RAM and show the
 ; characters in it.
 
+; *** includes ***
+.include "../include/colors.s"
+
 ; *** labels ***
+
+; BASIC & KERNAL working storage
+pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
+color           = $286          ; text foreground color
 hibase          = $288          ; top page for screen memory
-ci1icr          = $dc0d         ; CIA1 interrupt control register
-ci1cra          = $dc0e         ; CIA1 control register A
-ci2pra          = $dd00         ; CIA2 data port register A
-vmcsb           = $d018         ; VIC memory control register
+
+; BASIC & KERNAL routines
 linprt          = $bdcd
-clrscr          = $e544
+plot            = $e50a
+clrscr          = $e544         ; initialize the screen line link table and clear the screen
+fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
 clrlin          = $e9ff 
 chrout          = $ffd2
 getin           = $ffe4
-plot            = $e50a
 
-; *** main ***
+; VIC registers
+scroly          = $d011         ; VIC vertical fine scrolling & control register
+vmcsb           = $d018         ; VIC memory control register
+extcol          = $d020         ; border color (default 14 light blue)
+bgcol0          = $d021         ; background color 0 (default 6 blue)
+bgcol1          = $d022         ; background color 1 (default 1 white)
+bgcol2          = $d023         ; background color 2 (default 2 red)
+bgcol3          = $d024         ; background color 3 (default 3 cyan)
+
+; CIA registers
+ci1icr          = $dc0d         ; CIA1 interrupt control register
+ci1cra          = $dc0e         ; CIA1 control register A
+ci2pra          = $dd00         ; CIA2 data port register A
+
+; *** macros ***
+
+; name:         setbgcolors
+; description:  set the border and background colors
+; input:        \1 - border color
+;               \2 - background color 0
+;               \3 - background color 1
+;               \4 - background color 2
+;               \5 - background color 3
+; output:       -
+setbgcolors .macro
+                lda #\1
+                sta extcol
+                lda #\2
+                sta bgcol0
+                lda #\3
+                sta bgcol1
+                lda #\4
+                sta bgcol2
+                lda #\5
+                sta bgcol3
+.endm
+
+; name:         setextbgcolormode
+; description:  set the extended background color text mode
+; input:        -
+; output:       -
+setextbgcolormode .macro
+                lda scroly
+                ora #%01000000
+                sta scroly
+.endm
+
+; *** basic ***
 
                 *=$0801
                 ; 1 REM VIEW CHARGEN
@@ -36,36 +89,60 @@ plot            = $e50a
                 ; end of BASIC program
                 .word $0000
 
+; *** main ***
+
                 *=$0820
+                ; initialize screen
+                ; switch to VIC bank #3 & copy CHARGEN to RAM, screen=$cc00; chargen= $f000
                 jsr switchbank
-                jsr clrscr
+
+                ; set extended background color text mode
+                #setextbgcolormode
+
+                ; set border & background color registers
+                #setbgcolors black, black, lightblue, lightgray, cyan 
+
+                lda #white      ; text color
+                sta color
+                jsr clrscr      ; clear the screen
 
 loop
+                ; get the character data (8 bytes) form the chargen for
+                ; the character with the index in charidx (range 0-511)
+                ; the data is stored at address chardata
                 lda charidx
                 ldx charidx+1
                 jsr getchardata
 
-                clc
-                ldx #$00
-                ldy #$00
-                jsr plot
+                ; display the character as 8*8 characters on the screen
+                ; (spaces with different background colors)
+                ldx #$02        ; row offset
+                ldy #$02        ; column offset
                 jsr showchar
 
-                ldx #$08
+                ; display the index of the currently displayed character
+                ldx #$0a        ; clear line 11
                 jsr clrlin
-                
+                clc
+                ldy #$02
+                jsr plot        ; set the cursor pos to 11,3
                 ldx charidx
                 lda charidx+1
-                jsr linprt
+                jsr linprt      ; print the index in decimal
 
                 jsr getkey
-                bmi end
+                bmi end         ; negative? -> exit
                 jmp loop
 end
                 rts
 
 ; *** subroutines ***
 
+; name:         getkey
+; description:  get a key from the keyboard
+; input:        -
+;               -
+; output:       negative flag set if caller should exit
 getkey
 .block
                 jsr getin       ; get a char from the keyboard
@@ -93,65 +170,95 @@ getkey
 
                 ; handle key press events
 right                       
-up              
-                clc
+up              clc
                 inc charidx
                 bne end
                 inc charidx+1
+                lda charidx+1
+                cmp #$02        ; charidx > 511 ?
+                bne end         ; no -> continue
+                lda #$00        ; yes -> charidx = 0
+                sta charidx
+                sta charidx+1
                 jmp end                
 left            
-down
-                clc
+down            clc
                 lda charidx
                 bne a00
                 dec charidx+1
-a00
-                dec charidx
+                bmi a01         ; nagative?
+a00             dec charidx     ; no -> decrement index
                 jmp end
-end                
-                lda #$00
+a01             lda #$ff        ; yes -> charidx = 511 ($1ff)
+                sta charidx
+                lda #$01
+                sta charidx+1                
+end             lda #$00
                 rts
 exit    
+                ; set the negative flag signalling the caller that it schould exit
                 lda #$ff
                 rts
 .bend
 
+; name:         showchar
+; description:  draw the shape of a character at chardata to the screen
+; input:        x - line number
+;               y - column number
+;               chardata - 8 bytes of the current character to show
+; output:       -
+; uses          $fb - counter
+;               $fd - line number
+;               $fe - column number
 showchar
 .block
-                ldy #$00
-loop                
-                lda chardata,y                
-                jsr prtline
-                iny
-                cpy #$08
-                bne loop
+                stx $fd         ; store line and column numbers
+                sty $fe     
+                lda #$00        ; counter starts at 0
+                sta $fb
+loop            ldx $fd         ; x=line number
+                jsr fscrad      ; get the address of the line in x (address at pnt)
+                ldx $fb         ; x=counter value
+                lda chardata,x  ; get a byte of character data
+                ldy $fe         ; reset the column number offset (it gets destroyed in prtline)
+                jsr prtline     ; print a line of character data (different colored spaces for each bit)
+                inc $fd         ; next line
+                inx             ; increase counter
+                stx $fb
+                cpx #$08        ; x==8
+                bne loop        ; no -> process the next line
                 rts
 .bend
 
+; name:         prtline
+; description:  print a line of character data
+;               pixel on  - bgcol1
+;               pixel off - bgcol2
+; input:        a - one byte of character data
+;               y - column number
+;               pnt - start of current screen line
+; output:       -
+; uses          $fc - counter
 prtline
 .block
-                ldx #$08
-                clc
-a00                
-                asl
-                bcs a01
-                pha
-                lda #$92
-                bne a03
-a01             
-                pha
-                lda #$12
-a03                                
-                jsr chrout
-                lda #$20
-                jsr chrout
+                pha             ; push data byte to stack
+                lda #$08        ; counter starts at 8
+                sta $fc
+                pla             ; get back the character data byte from the stack
+                clc             ; clear carry
+printbit        asl             ; shift left - MSB will be in carry
+                bcs biton       ; carry set? MSB was 1
+                pha             ; not set -> MSB was 0
+                lda #$a0        ; space with background color from bgcol2
+                bne pokechar
+biton           pha
+                lda #$60        ; space with background color from bgcol1
+pokechar        sta (pnt),y     ; store in screen mem
+                iny             ; next column
                 pla
-                dex
-                bne a00
-                lda #$0d
-                jsr chrout
+                dec $fc         ; decrease counter
+                bne printbit    ; counter == 0? no -> check next bit
                 rts
-           
 .bend
 
 ; name:         switchbank
@@ -176,7 +283,7 @@ switchbank
                 sta $01
 
                 ; Copy CHARGEN to RAM.
-                jsr copy
+                jsr copychrg
                 
                 ; Turn off CHARGEN access.
                 lda $01
@@ -208,11 +315,11 @@ switchbank
                 rts
 .bend
 
-; name:         copy
+; name:         copychrg
 ; description:  copy the character generator ROM from $d000 to $f000-$ffff
 ; input:        -
 ; output:       -
-copy
+copychrg
 .block
                 ; set start addresses
                 ; $fb/$fc -> $d000
@@ -224,9 +331,9 @@ copy
                 sta $fc
                 lda #$f0
                 sta $fe
-                ldx #$10    ; outer loop: run inner loop 16 times (16*256 = 4kB)
+                ldx #$10        ; outer loop: run inner loop 16 times (16*256 = 4kB)
 a00
-                ldy #$00    ; inner loop: copy 256 bytes
+                ldy #$00        ; inner loop: copy 256 bytes
 a01
                 lda ($fb),y
                 sta ($fd),y
@@ -239,34 +346,42 @@ a01
                 rts
 .bend
 
+; name:         getchardata
+; description:  Copy the 8 bytes of a character from the relocated CHARGEN.
+; input:        A - character index low byte
+;               X - character index high byte
+; output:       8 bytes beginning at chardata
 getchardata
 .block
                 sei
-                stx $fc
+                stx $fc         ; store character index high/low bytes on the zero page
                 sta $fb
-                asl $fb
-                rol $fc
-                asl $fb
-                rol $fc
+
+                asl $fb         ; multiply by 8 to get the offset within CHARGEN
+                rol $fc         ; example: get the data for the reversed $ sign
+                asl $fb         ;   index = $a4
+                rol $fc         ;   offset = $a4 * 8 = $520
                 asl $fb
                 rol $fc
                 lda $fc
-                clc
-                adc #$f0
-                sta $fc
 
-                ; switch out KERNAL
+                clc             ; the relocated CHARGEN sits at $f000
+                adc #$f0        ; add $f0 to the high byte of the offset
+                sta $fc         ; so the reversed $ sign is at $f520
+
+                ; switch out KERNAL in order to access the underlying RAM containing CHARGEN
                 lda $01
                 and #%11111101
                 sta $01
 
+                ; copy 8 bytes for the calculated address to chardata
                 ldy #$00
-a00                
+copyloop                
                 lda ($fb),y
                 sta chardata,y
                 iny
                 cpy #$08
-                bne a00
+                bne copyloop
 
                 ; switch on KERNAL
                 lda $01
@@ -278,5 +393,5 @@ a00
 
 ; *** data ***
 
-charidx         .byte $00, $00
-chardata        .repeat 8, $00
+charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
+chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
