@@ -31,11 +31,24 @@ bgcol0          = $d021         ; background color 0 (default 6 blue)
 bgcol1          = $d022         ; background color 1 (default 1 white)
 bgcol2          = $d023         ; background color 2 (default 2 red)
 bgcol3          = $d024         ; background color 3 (default 3 cyan)
+spena           = $d015         ; sprite enable register
+sp0x            = $d000         ; sprite 0 x position
+sp0y            = $d001         ; sprite 0 y position
+msigx           = $d010         ; most significant bits of sprites 0-7 x position
+yxpand          = $d017         ; sprite vertical expansion register
+spmc            = $d01c         ; sprite multicolor register
+xxpand          = $d01d         ; sprite horizontal expansion register
+spmc0           = $d025         ; sprite multicolor register 0
+spmc1           = $d026         ; sprite multicolor register 1
+sp0col          = $d027         ; sprite 0 color register
 
 ; CIA registers
 ci1icr          = $dc0d         ; CIA1 interrupt control register
 ci1cra          = $dc0e         ; CIA1 control register A
 ci2pra          = $dd00         ; CIA2 data port register A
+
+; sprite
+sprdbp          = $cff8         ; sprite #0 data block pointer at the end of the relocated screen
 
 ; *** macros ***
 
@@ -109,6 +122,7 @@ setextbgcolormode .macro
                 jsr chrout
                 jsr clrscr      ; clear the screen
                 jsr prtitle     ; print prg title
+                jsr logo        ; show logo (multi-color sprite)
 loop
                 ; get the character data (8 bytes) form the chargen for
                 ; the character with the index in charidx (range 0-511)
@@ -136,7 +150,9 @@ loop
                 jsr getkey
                 bmi end         ; negative? -> exit
                 jmp loop
-end
+end                                
+                lda #%00000000  ; disable all sprites 
+                sta spena
                 rts
 
 ; *** subroutines ***
@@ -218,6 +234,55 @@ prtitle
                 ldy #>title
                 jsr strout
                 rts
+.bend
+
+; name:         logo
+; description:  show the logo sprite
+; input:        -
+; output:       -
+logo
+.block
+                ; copy sprite data to block #13
+                ldx #$00
+copydata        lda logosprite,x
+                sta $e000,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata
+
+                ; set data pointer to the sprite block
+                ldx #$00        ; sprite #0
+                lda #$80        ; sprite block #128 ($e000)
+                sta sprdbp,x
+
+                ; reset expand
+                lda #%00000000
+                sta xxpand
+                sta yxpand
+
+                ; set sprite 0 multicolor mode
+                lda #%00000001
+                sta spmc
+
+                ; set colors
+                lda #$08
+                sta spmc0
+                lda #$06
+                sta spmc1
+                lda #$03
+                sta sp0col
+
+                ; set sprite coordinates
+                lda #63
+                sta sp0y
+
+                lda #176
+                sta sp0x
+
+                ; enable sprite #0 
+                lda #%00000001
+                sta spena
+                rts                
 .bend
 
 ; name:         showchar
@@ -415,3 +480,13 @@ copyloop
 title           .null "ViewChars v1.0"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
+
+logosprite      
+                .byte $00,$0a,$00,$00,$20,$80,$00,$80
+                .byte $20,$02,$00,$08,$08,$05,$02,$08
+                .byte $10,$42,$08,$10,$42,$08,$10,$42
+                .byte $08,$15,$42,$08,$10,$42,$02,$00
+                .byte $08,$00,$80,$20,$00,$e0,$80,$03
+                .byte $fa,$00,$0f,$f0,$00,$0f,$c0,$00
+                .byte $3f,$00,$00,$3f,$00,$00,$fc,$00
+                .byte $00,$f0,$00,$00,$f0,$00,$00
