@@ -4,8 +4,7 @@ dist: xenial
 if: branch = master
 
 before_install:
-  - sudo curl http://glaciurso.sdfeu.org/c64/c1541 -o /usr/bin/c1541
-  - sudo chmod +x /usr/bin/c1541
+  - sudo apt-get -y install vice
   - sudo curl http://glaciurso.sdfeu.org/c64/tmpx -o /usr/bin/tmpx
   - sudo chmod +x /usr/bin/tmpx
   - mkdir bin
