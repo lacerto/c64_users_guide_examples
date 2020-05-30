@@ -1,5 +1,7 @@
 # COMMODORE 64 User's Guide Examples in Machine Language
 
+[![Build Status](https://travis-ci.com/lacerto/c64_users_guide_examples.svg?branch=master)](https://travis-ci.com/lacerto/c64_users_guide_examples)
+
 ## Description
 
 This repository contains a subset of the BASIC examples found in the **COMMODORE 64 User's Guide** converted to assembly language.
