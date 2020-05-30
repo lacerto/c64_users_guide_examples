@@ -83,6 +83,16 @@ setextbgcolormode .macro
                 sta scroly
 .endm
 
+; name:         resetextbgcolormode
+; description:  set the extended background color text mode
+; input:        -
+; output:       -
+resetextbgcolormode .macro
+                lda scroly
+                and #%10111111
+                sta scroly
+.endm
+
 ; *** basic ***
 
                 *=$0801
@@ -153,6 +163,17 @@ loop
 end                                
                 lda #%00000000  ; disable all sprites 
                 sta spena
+
+                ; restore screen
+                ; set border & background color registers to their default values
+                #setbgcolors lightblue, blue, white, red, cyan 
+
+                lda #lightblue  ; text color
+                sta color
+                lda #$8e        ; graphics / uppercase mode
+                jsr chrout
+                #resetextbgcolormode                
+                jsr clrscr      ; clear the screen
                 rts
 
 ; *** subroutines ***
