@@ -1,0 +1,18 @@
+language: c
+os: linux
+dist: xenial
+if: branch = master
+
+before_install:
+  - sudo curl http://glaciurso.sdfeu.org/c64/c1541 -o /usr/bin/c1541
+  - sudo chmod +x /usr/bin/c1541
+  - sudo curl http://glaciurso.sdfeu.org/c64/tmpx -o /usr/bin/tmpx
+  - sudo chmod +x /usr/bin/tmpx
+  - mkdir bin
+  - mkdir disk
+  - c1541 -format "examples,2a" d64 disk/examples.d64
+  - c1541 -format "utils,2b" d64 disk/utils.d64
+
+script:
+  - make
+  - make clean
