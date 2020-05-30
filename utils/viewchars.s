@@ -14,12 +14,13 @@ color           = $286          ; text foreground color
 hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
+strout          = $ab1e         ; print 0 terminated string
 linprt          = $bdcd
-plot            = $e50a
+plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
 fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
 clrlin          = $e9ff 
-chrout          = $ffd2
+chrout          = $ffd2         ; output a character in A
 getin           = $ffe4
 
 ; VIC registers
@@ -104,8 +105,10 @@ setextbgcolormode .macro
 
                 lda #white      ; text color
                 sta color
+                lda #$0e        ; text mode (lower/uppercase)
+                jsr chrout
                 jsr clrscr      ; clear the screen
-
+                jsr prtitle     ; print prg title
 loop
                 ; get the character data (8 bytes) form the chargen for
                 ; the character with the index in charidx (range 0-511)
@@ -198,6 +201,22 @@ end             lda #$00
 exit    
                 ; set the negative flag signalling the caller that it schould exit
                 lda #$ff
+                rts
+.bend
+
+; name:         prtitle
+; description:  print program title
+; input:        -
+; output:       -
+prtitle
+.block
+                clc
+                ldx #$02
+                ldy #$17
+                jsr plot
+                lda #<title
+                ldy #>title
+                jsr strout
                 rts
 .bend
 
@@ -393,5 +412,6 @@ copyloop
 
 ; *** data ***
 
+title           .null "ViewChars v1.0"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
