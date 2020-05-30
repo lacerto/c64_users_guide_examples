@@ -14,12 +14,13 @@ color           = $286          ; text foreground color
 hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
+strout          = $ab1e         ; print 0 terminated string
 linprt          = $bdcd
-plot            = $e50a
+plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
 fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
 clrlin          = $e9ff 
-chrout          = $ffd2
+chrout          = $ffd2         ; output a character in A
 getin           = $ffe4
 
 ; VIC registers
@@ -30,11 +31,24 @@ bgcol0          = $d021         ; background color 0 (default 6 blue)
 bgcol1          = $d022         ; background color 1 (default 1 white)
 bgcol2          = $d023         ; background color 2 (default 2 red)
 bgcol3          = $d024         ; background color 3 (default 3 cyan)
+spena           = $d015         ; sprite enable register
+sp0x            = $d000         ; sprite 0 x position
+sp0y            = $d001         ; sprite 0 y position
+msigx           = $d010         ; most significant bits of sprites 0-7 x position
+yxpand          = $d017         ; sprite vertical expansion register
+spmc            = $d01c         ; sprite multicolor register
+xxpand          = $d01d         ; sprite horizontal expansion register
+spmc0           = $d025         ; sprite multicolor register 0
+spmc1           = $d026         ; sprite multicolor register 1
+sp0col          = $d027         ; sprite 0 color register
 
 ; CIA registers
 ci1icr          = $dc0d         ; CIA1 interrupt control register
 ci1cra          = $dc0e         ; CIA1 control register A
 ci2pra          = $dd00         ; CIA2 data port register A
+
+; sprite
+sprdbp          = $cff8         ; sprite #0 data block pointer at the end of the relocated screen
 
 ; *** macros ***
 
@@ -66,6 +80,16 @@ setbgcolors .macro
 setextbgcolormode .macro
                 lda scroly
                 ora #%01000000
+                sta scroly
+.endm
+
+; name:         resetextbgcolormode
+; description:  set the extended background color text mode
+; input:        -
+; output:       -
+resetextbgcolormode .macro
+                lda scroly
+                and #%10111111
                 sta scroly
 .endm
 
@@ -104,8 +128,11 @@ setextbgcolormode .macro
 
                 lda #white      ; text color
                 sta color
+                lda #$0e        ; text mode (lower/uppercase)
+                jsr chrout
                 jsr clrscr      ; clear the screen
-
+                jsr prtitle     ; print prg title
+                jsr logo        ; show logo (multi-color sprite)
 loop
                 ; get the character data (8 bytes) form the chargen for
                 ; the character with the index in charidx (range 0-511)
@@ -133,7 +160,20 @@ loop
                 jsr getkey
                 bmi end         ; negative? -> exit
                 jmp loop
-end
+end                                
+                lda #%00000000  ; disable all sprites 
+                sta spena
+
+                ; restore screen
+                ; set border & background color registers to their default values
+                #setbgcolors lightblue, blue, white, red, cyan 
+
+                lda #lightblue  ; text color
+                sta color
+                lda #$8e        ; graphics / uppercase mode
+                jsr chrout
+                #resetextbgcolormode                
+                jsr clrscr      ; clear the screen
                 rts
 
 ; *** subroutines ***
@@ -199,6 +239,71 @@ exit
                 ; set the negative flag signalling the caller that it schould exit
                 lda #$ff
                 rts
+.bend
+
+; name:         prtitle
+; description:  print program title
+; input:        -
+; output:       -
+prtitle
+.block
+                clc
+                ldx #$02
+                ldy #$17
+                jsr plot
+                lda #<title
+                ldy #>title
+                jsr strout
+                rts
+.bend
+
+; name:         logo
+; description:  show the logo sprite
+; input:        -
+; output:       -
+logo
+.block
+                ; copy sprite data to block #13
+                ldx #$00
+copydata        lda logosprite,x
+                sta $e000,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata
+
+                ; set data pointer to the sprite block
+                ldx #$00        ; sprite #0
+                lda #$80        ; sprite block #128 ($e000)
+                sta sprdbp,x
+
+                ; reset expand
+                lda #%00000000
+                sta xxpand
+                sta yxpand
+
+                ; set sprite 0 multicolor mode
+                lda #%00000001
+                sta spmc
+
+                ; set colors
+                lda #$08
+                sta spmc0
+                lda #$06
+                sta spmc1
+                lda #$03
+                sta sp0col
+
+                ; set sprite coordinates
+                lda #63
+                sta sp0y
+
+                lda #176
+                sta sp0x
+
+                ; enable sprite #0 
+                lda #%00000001
+                sta spena
+                rts                
 .bend
 
 ; name:         showchar
@@ -393,5 +498,16 @@ copyloop
 
 ; *** data ***
 
+title           .null "ViewChars v1.0"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
+
+logosprite      
+                .byte $00,$0a,$00,$00,$20,$80,$00,$80
+                .byte $20,$02,$00,$08,$08,$05,$02,$08
+                .byte $10,$42,$08,$10,$42,$08,$10,$42
+                .byte $08,$15,$42,$08,$10,$42,$02,$00
+                .byte $08,$00,$80,$20,$00,$e0,$80,$03
+                .byte $fa,$00,$0f,$f0,$00,$0f,$c0,$00
+                .byte $3f,$00,$00,$3f,$00,$00,$fc,$00
+                .byte $00,$f0,$00,$00,$f0,$00,$00
