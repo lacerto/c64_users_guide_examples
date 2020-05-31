@@ -34,6 +34,8 @@ bgcol3          = $d024         ; background color 3 (default 3 cyan)
 spena           = $d015         ; sprite enable register
 sp0x            = $d000         ; sprite 0 x position
 sp0y            = $d001         ; sprite 0 y position
+sp1x            = $d002         ; sprite 1 x position
+sp1y            = $d003         ; sprite 1 y position
 msigx           = $d010         ; most significant bits of sprites 0-7 x position
 yxpand          = $d017         ; sprite vertical expansion register
 spmc            = $d01c         ; sprite multicolor register
@@ -41,6 +43,7 @@ xxpand          = $d01d         ; sprite horizontal expansion register
 spmc0           = $d025         ; sprite multicolor register 0
 spmc1           = $d026         ; sprite multicolor register 1
 sp0col          = $d027         ; sprite 0 color register
+sp1col          = $d028         ; sprite 1 color register
 
 ; CIA registers
 ci1icr          = $dc0d         ; CIA1 interrupt control register
@@ -133,6 +136,7 @@ resetextbgcolormode .macro
                 jsr clrscr      ; clear the screen
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
+                jsr prevena     ; enable character preview
 loop
                 ; get the character data (8 bytes) form the chargen for
                 ; the character with the index in charidx (range 0-511)
@@ -140,6 +144,9 @@ loop
                 lda charidx
                 ldx charidx+1
                 jsr getchardata
+
+                ; convert to preview sprite data
+                jsr convprev
 
                 ; display the character as 8*8 characters on the screen
                 ; (spaces with different background colors)
@@ -263,7 +270,7 @@ prtitle
 ; output:       -
 logo
 .block
-                ; copy sprite data to block #13
+                ; copy sprite data to sprite block
                 ldx #$00
 copydata        lda logosprite,x
                 sta $e000,x
@@ -304,6 +311,62 @@ copydata        lda logosprite,x
                 lda #%00000001
                 sta spena
                 rts                
+.bend
+
+; name:         prevena
+; description:  enable sprite for normal sized character preview
+; input:        -
+; output:       -
+prevena
+.block
+                ; copy sprite data to sprite block
+                ldx #$00
+copydata        lda previewsprite,x
+                sta $e040,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata
+
+                ; set data pointer to the sprite block
+                ldx #$01        ; sprite #1
+                lda #$81        ; sprite block #129 ($c000 + $81*$40 = $e040)
+                sta sprdbp,x
+
+                ; set color
+                lda #white
+                sta sp1col
+
+                ; set sprite coordinates
+                lda #194
+                sta sp1y
+
+                lda #112
+                sta sp1x
+
+                ; enable sprite #1
+                lda spena
+                ora #%00000010
+                sta spena
+                rts                
+.bend
+
+; name:         convprev
+; description:  convert character data to preview sprite data
+; input:        -
+; output:       -
+convprev
+.block
+                ldx #$00
+                ldy #$00
+loop            lda chardata,x
+                sta $e040,y
+                iny
+                iny
+                iny
+                inx
+                cpx #$08
+                bne loop
+                rts
 .bend
 
 ; name:         showchar
@@ -511,3 +574,5 @@ logosprite
                 .byte $fa,$00,$0f,$f0,$00,$0f,$c0,$00
                 .byte $3f,$00,$00,$3f,$00,$00,$fc,$00
                 .byte $00,$f0,$00,$00,$f0,$00,$00
+
+previewsprite   .repeat 63, $00
