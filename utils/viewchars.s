@@ -155,6 +155,9 @@ loop
                 ldy #$02        ; column offset
                 jsr showchar
 
+                ; print hex values for each row
+                jsr prtrowhex
+
                 ; display the index of the currently displayed character
                 ldx #$0a        ; clear line 11
                 jsr clrlin
@@ -277,6 +280,26 @@ prtprev
                 jsr plot
                 lda #<preview
                 ldy #>preview
+                jsr strout
+                rts
+.bend
+
+; name:         prtrowhex
+; description:  print hex values for each row
+; input:        -
+; output:       -
+prtrowhex
+.block
+                lda chardata
+                ldx #<bytehex
+                ldy #>bytehex
+                jsr hexify
+                clc
+                ldx #$02
+                ldy #$0d
+                jsr plot
+                lda #<bytehex
+                ldy #>bytehex
                 jsr strout
                 rts
 .bend
@@ -576,13 +599,58 @@ copyloop
                 rts
 .bend
 
+; name:         hexify
+; description:  
+; input:        a - this value will be converted to a hex string
+;               x - ptr to a 3 byte hex string buffer (low)
+;               y - ptr to a 3 byte hex string buffer (high)
+; output:       -
+; uses:         $fb and $fc
+; note:         taken from codebase64 - many thanks
+;               http://codebase64.org/doku.php?id=base:integer_to_hex_string
+hexify
+.block
+                stx $fb
+                sty $fc
+                ldy #$00
+                tax             ; a -> x
+                lsr
+                lsr
+                lsr
+                lsr             ; upper nybble -> lower nybble 
+                jsr hexc        ; convert upper nybble
+                jsr output      ; and store it in the buffer
+                txa             ; x -> a; the original value of a
+                and #$0f		; zero out the upper nybble
+                jsr hexc        ; convert lower nybble
+                jsr output      ; store it in the buffer
+                lda #$00        ; terminate string with 0
+                sta ($fb),y
+                rts
+            
+output          sta ($fb),y     ; output a byte using a zp-ptr and y-index
+                iny             ; increment the output address
+                rts
+                
+hexc            cmp #$0a		; subroutine converts 0-f to a character
+                bcs hexa
+                clc             ; digit 0-9
+                adc #$30        ; "0"
+                bne hexb        ; unconditional jump as z=0 always
+hexa            clc
+                adc #$37   		; digit a-f
+hexb            rts
+.bend
+
 ; *** data ***
 
 title           .null "ViewChars v1.0"
 preview         .null "Preview:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
+bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
 
+; sprites
 logosprite      
                 .byte $00,$0a,$00,$00,$20,$80,$00,$80
                 .byte $20,$02,$00,$08,$08,$05,$02,$08
