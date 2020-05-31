@@ -288,19 +288,33 @@ prtprev
 ; description:  print hex values for each row
 ; input:        -
 ; output:       -
+; uses:         $fb - used by hexify
+;               $fc - used by hexify
+;               $fd - counter
+;               $fe - y coordinate of text
 prtrowhex
 .block
-                lda chardata
-                ldx #<bytehex
+                lda #$02        ; y-coord: start in line 3
+                sta $fe
+                lda #$00
+                sta $fd         ; counter=0
+loop            ldx $fd
+                lda chardata,x  ; load a byte from the character data
+                ldx #<bytehex   ; hex value is stored here
                 ldy #>bytehex
-                jsr hexify
+                jsr hexify      ; convert byte to hex string (null terminated)
                 clc
-                ldx #$02
-                ldy #$0d
-                jsr plot
+                ldx $fe         ; load y-coord
+                ldy #$0d        ; x-coord
+                jsr plot        ; set cursor position
                 lda #<bytehex
                 ldy #>bytehex
-                jsr strout
+                jsr strout      ; print hex value
+                inc $fe         ; next line (y-coord++)
+                inc $fd         ; counter++
+                lda $fd
+                cmp #$08        ; counter==8?
+                bne loop        ; no -> next iteration
                 rts
 .bend
 
