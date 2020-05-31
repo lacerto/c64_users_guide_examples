@@ -136,6 +136,7 @@ resetextbgcolormode .macro
                 jsr clrscr      ; clear the screen
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
+                jsr prtprev     ; print preview text
                 jsr prevena     ; enable character preview
 loop
                 ; get the character data (8 bytes) form the chargen for
@@ -264,6 +265,22 @@ prtitle
                 rts
 .bend
 
+; name:         prtprev
+; description:  print preview text
+; input:        -
+; output:       -
+prtprev
+.block
+                clc
+                ldx #$12
+                ldy #$02
+                jsr plot
+                lda #<preview
+                ldy #>preview
+                jsr strout
+                rts
+.bend
+
 ; name:         logo
 ; description:  show the logo sprite
 ; input:        -
@@ -359,11 +376,11 @@ convprev
                 ldx #$00
                 ldy #$00
 loop            lda chardata,x
-                sta $e040,y
-                iny
-                iny
-                iny
-                inx
+                sta $e040,y     ; sprite block 129 ($81) in bank #3
+                iny             ; skip next 2 bytes as each row of
+                iny             ; a sprite consists of 3 bytes
+                iny             ; we use only the 8x8 pixel upper left
+                inx             ; corner of this sprite
                 cpx #$08
                 bne loop
                 rts
@@ -562,6 +579,7 @@ copyloop
 ; *** data ***
 
 title           .null "ViewChars v1.0"
+preview         .null "Preview:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 
