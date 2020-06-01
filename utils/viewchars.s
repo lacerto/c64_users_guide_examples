@@ -127,7 +127,8 @@ resetextbgcolormode .macro
                 #setextbgcolormode
 
                 ; set border & background color registers
-                #setbgcolors black, black, lightblue, lightgray, cyan 
+                ; border, bgcol0, bgcol1, bgcol2, bgcol3
+                #setbgcolors black, black, mediumgray, lightgray, lightblue 
 
                 lda #white      ; text color
                 sta color
@@ -473,7 +474,7 @@ loop            ldx $fd         ; x=line number
 
 ; name:         prtline
 ; description:  print a line of character data
-;               pixel on  - bgcol1
+;               pixel on  - bgcol3
 ;               pixel off - bgcol2
 ; input:        a - one byte of character data
 ;               y - column number
@@ -493,7 +494,7 @@ printbit        asl             ; shift left - MSB will be in carry
                 lda #$a0        ; space with background color from bgcol2
                 bne pokechar
 biton           pha
-                lda #$60        ; space with background color from bgcol1
+                lda #$e0        ; space with background color from bgcol3
 pokechar        sta (pnt),y     ; store in screen mem
                 iny             ; next column
                 pla
