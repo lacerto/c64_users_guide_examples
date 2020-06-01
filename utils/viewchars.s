@@ -15,13 +15,13 @@ hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
 strout          = $ab1e         ; print 0 terminated string
-linprt          = $bdcd
+linprt          = $bdcd         ; print number in x/a as decimal ascii
 plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
 fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
-clrlin          = $e9ff 
+clrlin          = $e9ff         ; clear screen line in x
 chrout          = $ffd2         ; output a character in A
-getin           = $ffe4
+getin           = $ffe4         ; get one byte from the input device
 
 ; VIC registers
 scroly          = $d011         ; VIC vertical fine scrolling & control register
@@ -137,6 +137,7 @@ resetextbgcolormode .macro
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
                 jsr prtprev     ; print preview text
+                jsr prtdlrs     ; print dollar signs (for the hex values of the rows)
                 jsr prevena     ; enable character preview
 loop
                 ; get the character data (8 bytes) form the chargen for
@@ -154,6 +155,9 @@ loop
                 ldx #$02        ; row offset
                 ldy #$02        ; column offset
                 jsr showchar
+
+                ; print hex values for each row
+                jsr prtrowhex
 
                 ; display the index of the currently displayed character
                 ldx #$0a        ; clear line 11
@@ -265,6 +269,24 @@ prtitle
                 rts
 .bend
 
+; name:         prtdlrs
+; description:  print dollar signs in rows 2 through 9 at column 12 for the
+;               hex values of the character data rows
+; input:        -
+; output:       -
+prtdlrs
+.block
+                ldx #$02        ; start at line 2
+loop            jsr fscrad      ; get screen line address in pnt for the line in x
+                ldy #$0c        ; offset 12 for the column
+                lda scdollar    ; screen code of the dollar sign
+                sta (pnt),y     ; poke it into the screen mem
+                inx             ; x++
+                cpx #$0a        ; line < 10
+                bne loop        ; yes -> next iteration
+                rts
+.bend
+
 ; name:         prtprev
 ; description:  print preview text
 ; input:        -
@@ -278,6 +300,40 @@ prtprev
                 lda #<preview
                 ldy #>preview
                 jsr strout
+                rts
+.bend
+
+; name:         prtrowhex
+; description:  print hex values for each row
+; input:        -
+; output:       -
+; uses:         $fb - used by hexify
+;               $fc - used by hexify
+;               $fd - counter
+;               $fe - y coordinate of text
+prtrowhex
+.block
+                lda #$02        ; y-coord: start in line 3
+                sta $fe
+                lda #$00
+                sta $fd         ; counter=0
+loop            ldx $fd
+                lda chardata,x  ; load a byte from the character data
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx $fe         ; load y-coord
+                ldy #$0d        ; x-coord
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+                inc $fe         ; next line (y-coord++)
+                inc $fd         ; counter++
+                lda $fd
+                cmp #$08        ; counter==8?
+                bne loop        ; no -> next iteration
                 rts
 .bend
 
@@ -576,13 +632,59 @@ copyloop
                 rts
 .bend
 
+; name:         hexify
+; description:  
+; input:        a - this value will be converted to a hex string
+;               x - ptr to a 3 byte hex string buffer (low)
+;               y - ptr to a 3 byte hex string buffer (high)
+; output:       -
+; uses:         $fb and $fc
+; note:         taken from codebase64 - many thanks
+;               http://codebase64.org/doku.php?id=base:integer_to_hex_string
+hexify
+.block
+                stx $fb
+                sty $fc
+                ldy #$00
+                tax             ; a -> x
+                lsr
+                lsr
+                lsr
+                lsr             ; upper nybble -> lower nybble 
+                jsr hexc        ; convert upper nybble
+                jsr output      ; and store it in the buffer
+                txa             ; x -> a; the original value of a
+                and #$0f		; zero out the upper nybble
+                jsr hexc        ; convert lower nybble
+                jsr output      ; store it in the buffer
+                lda #$00        ; terminate string with 0
+                sta ($fb),y
+                rts
+            
+output          sta ($fb),y     ; output a byte using a zp-ptr and y-index
+                iny             ; increment the output address
+                rts
+                
+hexc            cmp #$0a		; subroutine converts 0-f to a character
+                bcs hexa
+                clc             ; digit 0-9
+                adc #$30        ; "0"
+                bne hexb        ; unconditional jump as z=0 always
+hexa            clc
+                adc #$37   		; digit a-f
+hexb            rts
+.bend
+
 ; *** data ***
 
 title           .null "ViewChars v1.0"
 preview         .null "Preview:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
+bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
+scdollar        .screen "$"     ; screen code of the dollar sign
 
+; sprites
 logosprite      
                 .byte $00,$0a,$00,$00,$20,$80,$00,$80
                 .byte $20,$02,$00,$08,$08,$05,$02,$08
