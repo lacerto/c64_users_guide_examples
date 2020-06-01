@@ -15,13 +15,13 @@ hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
 strout          = $ab1e         ; print 0 terminated string
-linprt          = $bdcd
+linprt          = $bdcd         ; print number in x/a as decimal ascii
 plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
 fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
-clrlin          = $e9ff 
+clrlin          = $e9ff         ; clear screen line in x
 chrout          = $ffd2         ; output a character in A
-getin           = $ffe4
+getin           = $ffe4         ; get one byte from the input device
 
 ; VIC registers
 scroly          = $d011         ; VIC vertical fine scrolling & control register
@@ -137,6 +137,7 @@ resetextbgcolormode .macro
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
                 jsr prtprev     ; print preview text
+                jsr prtdlrs     ; print dollar signs (for the hex values of the rows)
                 jsr prevena     ; enable character preview
 loop
                 ; get the character data (8 bytes) form the chargen for
@@ -265,6 +266,24 @@ prtitle
                 lda #<title
                 ldy #>title
                 jsr strout
+                rts
+.bend
+
+; name:         prtdlrs
+; description:  print dollar signs in rows 2 through 9 at column 12 for the
+;               hex values of the character data rows
+; input:        -
+; output:       -
+prtdlrs
+.block
+                ldx #$02        ; start at line 2
+loop            jsr fscrad      ; get screen line address in pnt for the line in x
+                ldy #$0c        ; offset 12 for the column
+                lda scdollar    ; screen code of the dollar sign
+                sta (pnt),y     ; poke it into the screen mem
+                inx             ; x++
+                cpx #$0a        ; line < 10
+                bne loop        ; yes -> next iteration
                 rts
 .bend
 
@@ -663,6 +682,7 @@ preview         .null "Preview:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
+scdollar        .screen "$"     ; screen code of the dollar sign
 
 ; sprites
 logosprite      
