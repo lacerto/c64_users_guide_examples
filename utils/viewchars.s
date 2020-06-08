@@ -250,19 +250,47 @@ exit
                 rts
 .bend
 
+; name:         printxy
+; description:  print text at the given coordinates
+;               a/y contains a pointer to the data
+;               the first data byte is the row, the next one the column number (zero based)
+;               then a null terminated string follows
+; input:        a - data pointer low byte
+;               y - data pointer high byte
+; output:       -
+; uses:         $fb - pointer low
+;               $fc - pointer high
+printxy
+.block
+                sta $fb         ; store pointer low
+                sty $fc         ; and high byte
+                ldy #$00        ; index
+                lda ($fb),y     ; get the row number
+                tax             ; transfer it to x
+                iny             ; increase index
+                lda ($fb),y     ; get the column number
+                tay             ; transfer it to y
+                clc             ; clear carry (means that plot sets the cursor coordinates)
+                jsr plot        ; call plot
+                lda $fb         ; load the low byte
+                clc
+                adc #$02        ; add 2 (skip the row/column numbers)
+                bcc nooverflow  ; did it overflow?
+                inc $fc         ; yes -> increase high byte
+nooverflow      ldy $fc         ; load high byte (low byte is already in a)
+                jsr strout      ; print null terminated text
+                rts                 
+.bend
+
 ; name:         prtitle
 ; description:  print program title
 ; input:        -
 ; output:       -
 prtitle
 .block
-                clc
-                ldx #$02
-                ldy #$17
-                jsr plot
                 lda #<title
                 ldy #>title
-                jsr strout
+                jsr printxy
                 rts
 .bend
 
@@ -290,13 +318,9 @@ loop            jsr fscrad      ; get screen line address in pnt for the line in
 ; output:       -
 prtidxstr
 .block
-                clc
-                ldx #$0c
-                ldy #$02
-                jsr plot
                 lda #<indexstr
                 ldy #>indexstr
-                jsr strout
+                jsr printxy
                 rts
 .bend
 
@@ -306,13 +330,9 @@ prtidxstr
 ; output:       -
 prtprev
 .block
-                clc
-                ldx #$12
-                ldy #$02
-                jsr plot
                 lda #<preview
                 ldy #>preview
-                jsr strout
+                jsr printxy
                 rts
 .bend
 
@@ -731,9 +751,12 @@ hexb            rts
 
 ; *** data ***
 
-title           .null "ViewChars v1.0"
-preview         .null "Preview:"
-indexstr        .null "Index:"
+title           .byte $02, $17  ; row, column coordinates for plot
+                .null "ViewChars v1.0"
+preview         .byte $12, $02
+                .null "Preview:"
+indexstr        .byte $0c, $02
+                .null "Index:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
