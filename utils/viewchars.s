@@ -139,8 +139,10 @@ resetextbgcolormode .macro
                 jsr clrscr      ; clear the screen
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
-                jsr prtprev     ; print preview text
                 jsr prtidxstr   ; print index text
+                jsr prtoffset   ; print offset text
+                jsr prtaddress  ; print address text
+                jsr prtprev     ; print preview text
                 jsr prtdlrs     ; print dollar signs (for the hex values of the rows)
                 jsr prevena     ; enable character preview
 loop
@@ -320,6 +322,30 @@ prtidxstr
 .block
                 lda #<indexstr
                 ldy #>indexstr
+                jsr printxy
+                rts
+.bend
+
+; name:         prtoffset
+; description:  print offset text
+; input:        -
+; output:       -
+prtoffset
+.block
+                lda #<offsetstr
+                ldy #>offsetstr
+                jsr printxy
+                rts
+.bend
+
+; name:         prtaddress
+; description:  print address text
+; input:        -
+; output:       -
+prtaddress
+.block
+                lda #<addressstr
+                ldy #>addressstr
                 jsr printxy
                 rts
 .bend
@@ -757,6 +783,10 @@ preview         .byte $12, $02
                 .null "Preview:"
 indexstr        .byte $0c, $02
                 .null "Index:"
+offsetstr       .byte $0e, $02
+                .null "Offset:"
+addressstr      .byte $10, $02
+                .null "Address:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
