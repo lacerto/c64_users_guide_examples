@@ -168,6 +168,12 @@ loop
                 ; display the index of the currently displayed character
                 jsr prtidx
 
+                ; display the hex offset of the current character in CHARGEN
+                jsr prtoffshex
+
+                ; display the hex address of the current character in the relocated CHARGEN
+                jsr prtaddrhex
+
                 jsr getkey
                 bmi end         ; negative? -> exit
                 jmp loop
@@ -359,6 +365,78 @@ prtprev
                 lda #<preview
                 ldy #>preview
                 jsr printxy
+                rts
+.bend
+
+; name:         prtoffshex
+; description:  print offset hex value
+; input:        -
+; output:       -
+; uses:         $fb - used by hexify
+;               $fc - used by hexify
+prtoffshex
+.block
+                ; convert and print high byte
+                lda charoffs+1
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$0e
+                ldy #$0c
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+
+                ; convert and print low byte
+                lda charoffs
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$0e
+                ldy #$0e
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+                rts
+.bend
+
+; name:         prtaddrhex
+; description:  print address hex value
+; input:        -
+; output:       -
+; uses:         $fb - used by hexify
+;               $fc - used by hexify
+prtaddrhex
+.block
+                ; convert and print high byte
+                lda charaddr+1
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$10
+                ldy #$0c
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+
+                ; convert and print low byte
+                lda charaddr
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$10
+                ldy #$0e
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
                 rts
 .bend
 
@@ -704,11 +782,17 @@ getchardata
                 rol $fc         ;   offset = $a4 * 8 = $520
                 asl $fb
                 rol $fc
+
+                lda $fb         ; store the offset for printing
+                sta charoffs
+                sta charaddr
                 lda $fc
+                sta charoffs+1
 
                 clc             ; the relocated CHARGEN sits at $f000
                 adc #$f0        ; add $f0 to the high byte of the offset
                 sta $fc         ; so the reversed $ sign is at $f520
+                sta charaddr+1
 
                 ; switch out KERNAL in order to access the underlying RAM containing CHARGEN
                 lda $01
@@ -784,10 +868,12 @@ preview         .byte $12, $02
 indexstr        .byte $0c, $02
                 .null "Index:"
 offsetstr       .byte $0e, $02
-                .null "Offset:"
+                .null "Offset:  $"
 addressstr      .byte $10, $02
-                .null "Address:"
+                .null "Address: $"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
+charoffs        .word $0000     ; getchardata calculates the offsets and addresses and stores them here
+charaddr        .word $0000     ; so that they can easily be printed
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
 scdollar        .screen "$"     ; screen code of the dollar sign
