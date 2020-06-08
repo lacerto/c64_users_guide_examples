@@ -140,6 +140,7 @@ resetextbgcolormode .macro
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
                 jsr prtprev     ; print preview text
+                jsr prtidxstr   ; print index text
                 jsr prtdlrs     ; print dollar signs (for the hex values of the rows)
                 jsr prevena     ; enable character preview
 loop
@@ -280,6 +281,22 @@ loop            jsr fscrad      ; get screen line address in pnt for the line in
                 inx             ; x++
                 cpx #$0a        ; line < 10
                 bne loop        ; yes -> next iteration
+                rts
+.bend
+
+; name:         prtidxstr
+; description:  print index text
+; input:        -
+; output:       -
+prtidxstr
+.block
+                clc
+                ldx #$0c
+                ldy #$02
+                jsr plot
+                lda #<indexstr
+                ldy #>indexstr
+                jsr strout
                 rts
 .bend
 
@@ -716,6 +733,7 @@ hexb            rts
 
 title           .null "ViewChars v1.0"
 preview         .null "Preview:"
+indexstr        .null "Index:"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
