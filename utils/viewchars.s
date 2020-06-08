@@ -15,7 +15,9 @@ hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
 strout          = $ab1e         ; print 0 terminated string
+givayf          = $b391         ; convert fixed integer y/a to float and store in FAC1
 linprt          = $bdcd         ; print number in x/a as decimal ascii
+fout            = $bddd         ; convert FAC1 to string result in a/y
 plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
 fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
@@ -161,14 +163,7 @@ loop
                 jsr prtrowhex
 
                 ; display the index of the currently displayed character
-                ldx #$0a        ; clear line 11
-                jsr clrlin
-                clc
-                ldy #$02
-                jsr plot        ; set the cursor pos to 11,3
-                ldx charidx
-                lda charidx+1
-                jsr linprt      ; print the index in decimal
+                jsr prtidx
 
                 jsr getkey
                 bmi end         ; negative? -> exit
@@ -335,6 +330,47 @@ loop            ldx $fd
                 lda $fd
                 cmp #$08        ; counter==8?
                 bne loop        ; no -> next iteration
+                rts
+.bend
+
+; name:         prtidx
+; description:  print the current character index
+; input:        -
+; output:       -
+; uses:         $fb - str pointer low byte
+;               $fc - str pointer high byte
+;               $fd - counter
+prtidx
+.block
+                ldy charidx     ; store character index in fac                
+                lda charidx+1
+                jsr givayf
+                jsr fout        ; convert to string in a/y (low/high)
+                sta $fb         ; store the pointer to the string
+                sty $fc
+
+                ldy #$ff        ; get the length of the string
+loop            iny
+                lda ($fb),y
+                bne loop
+                sty $fd         ; and store it at $fd
+
+                ldx #$0c        ; set the cursor position
+                ldy #$0c
+                clc
+                jsr plot
+
+                ldx $fd         ; pad the string using spaces
+continue        cpx #$04        ; the generated string always begins with a space
+                beq printnum    ; so the index range 0..511 converted to string
+                lda #" "        ; can have a max length of 4 (" 511")
+                jsr chrout      ; if length < 4 then print extra spaces in front
+                inx             ; (max 2 spaces as the min length is 2 (e.g. idx 0 -> " 0"))
+                bne continue
+
+printnum        lda $fb         ; load the string pointer
+                ldy $fc
+                jsr strout      ; print the string
                 rts
 .bend
 
