@@ -15,7 +15,9 @@ hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
 strout          = $ab1e         ; print 0 terminated string
+givayf          = $b391         ; convert fixed integer y/a to float and store in FAC1
 linprt          = $bdcd         ; print number in x/a as decimal ascii
+fout            = $bddd         ; convert FAC1 to string result in a/y
 plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
 fscrad          = $e9f0         ; fetch address of line in x and store it in pnt ($d1/$d2)
@@ -137,6 +139,9 @@ resetextbgcolormode .macro
                 jsr clrscr      ; clear the screen
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
+                jsr prtidxstr   ; print index text
+                jsr prtoffset   ; print offset text
+                jsr prtaddress  ; print address text
                 jsr prtprev     ; print preview text
                 jsr prtdlrs     ; print dollar signs (for the hex values of the rows)
                 jsr prevena     ; enable character preview
@@ -161,14 +166,13 @@ loop
                 jsr prtrowhex
 
                 ; display the index of the currently displayed character
-                ldx #$0a        ; clear line 11
-                jsr clrlin
-                clc
-                ldy #$02
-                jsr plot        ; set the cursor pos to 11,3
-                ldx charidx
-                lda charidx+1
-                jsr linprt      ; print the index in decimal
+                jsr prtidx
+
+                ; display the hex offset of the current character in CHARGEN
+                jsr prtoffshex
+
+                ; display the hex address of the current character in the relocated CHARGEN
+                jsr prtaddrhex
 
                 jsr getkey
                 bmi end         ; negative? -> exit
@@ -254,19 +258,47 @@ exit
                 rts
 .bend
 
+; name:         printxy
+; description:  print text at the given coordinates
+;               a/y contains a pointer to the data
+;               the first data byte is the row, the next one the column number (zero based)
+;               then a null terminated string follows
+; input:        a - data pointer low byte
+;               y - data pointer high byte
+; output:       -
+; uses:         $fb - pointer low
+;               $fc - pointer high
+printxy
+.block
+                sta $fb         ; store pointer low
+                sty $fc         ; and high byte
+                ldy #$00        ; index
+                lda ($fb),y     ; get the row number
+                tax             ; transfer it to x
+                iny             ; increase index
+                lda ($fb),y     ; get the column number
+                tay             ; transfer it to y
+                clc             ; clear carry (means that plot sets the cursor coordinates)
+                jsr plot        ; call plot
+                lda $fb         ; load the low byte
+                clc
+                adc #$02        ; add 2 (skip the row/column numbers)
+                bcc nooverflow  ; did it overflow?
+                inc $fc         ; yes -> increase high byte
+nooverflow      ldy $fc         ; load high byte (low byte is already in a)
+                jsr strout      ; print null terminated text
+                rts                 
+.bend
+
 ; name:         prtitle
 ; description:  print program title
 ; input:        -
 ; output:       -
 prtitle
 .block
-                clc
-                ldx #$02
-                ldy #$17
-                jsr plot
                 lda #<title
                 ldy #>title
-                jsr strout
+                jsr printxy
                 rts
 .bend
 
@@ -288,19 +320,123 @@ loop            jsr fscrad      ; get screen line address in pnt for the line in
                 rts
 .bend
 
+; name:         prtidxstr
+; description:  print index text
+; input:        -
+; output:       -
+prtidxstr
+.block
+                lda #<indexstr
+                ldy #>indexstr
+                jsr printxy
+                rts
+.bend
+
+; name:         prtoffset
+; description:  print offset text
+; input:        -
+; output:       -
+prtoffset
+.block
+                lda #<offsetstr
+                ldy #>offsetstr
+                jsr printxy
+                rts
+.bend
+
+; name:         prtaddress
+; description:  print address text
+; input:        -
+; output:       -
+prtaddress
+.block
+                lda #<addressstr
+                ldy #>addressstr
+                jsr printxy
+                rts
+.bend
+
 ; name:         prtprev
 ; description:  print preview text
 ; input:        -
 ; output:       -
 prtprev
 .block
-                clc
-                ldx #$12
-                ldy #$02
-                jsr plot
                 lda #<preview
                 ldy #>preview
-                jsr strout
+                jsr printxy
+                rts
+.bend
+
+; name:         prtoffshex
+; description:  print offset hex value
+; input:        -
+; output:       -
+; uses:         $fb - used by hexify
+;               $fc - used by hexify
+prtoffshex
+.block
+                ; convert and print high byte
+                lda charoffs+1
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$0e
+                ldy #$0c
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+
+                ; convert and print low byte
+                lda charoffs
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$0e
+                ldy #$0e
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+                rts
+.bend
+
+; name:         prtaddrhex
+; description:  print address hex value
+; input:        -
+; output:       -
+; uses:         $fb - used by hexify
+;               $fc - used by hexify
+prtaddrhex
+.block
+                ; convert and print high byte
+                lda charaddr+1
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$10
+                ldy #$0c
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
+
+                ; convert and print low byte
+                lda charaddr
+                ldx #<bytehex   ; hex value is stored here
+                ldy #>bytehex
+                jsr hexify      ; convert byte to hex string (null terminated)
+                clc
+                ldx #$10
+                ldy #$0e
+                jsr plot        ; set cursor position
+                lda #<bytehex
+                ldy #>bytehex
+                jsr strout      ; print hex value
                 rts
 .bend
 
@@ -335,6 +471,47 @@ loop            ldx $fd
                 lda $fd
                 cmp #$08        ; counter==8?
                 bne loop        ; no -> next iteration
+                rts
+.bend
+
+; name:         prtidx
+; description:  print the current character index
+; input:        -
+; output:       -
+; uses:         $fb - str pointer low byte
+;               $fc - str pointer high byte
+;               $fd - counter
+prtidx
+.block
+                ldy charidx     ; store character index in fac                
+                lda charidx+1
+                jsr givayf
+                jsr fout        ; convert to string in a/y (low/high)
+                sta $fb         ; store the pointer to the string
+                sty $fc
+
+                ldy #$ff        ; get the length of the string
+loop            iny
+                lda ($fb),y
+                bne loop
+                sty $fd         ; and store it at $fd
+
+                ldx #$0c        ; set the cursor position
+                ldy #$0c
+                clc
+                jsr plot
+
+                ldx $fd         ; pad the string using spaces
+continue        cpx #$04        ; the generated string always begins with a space
+                beq printnum    ; so the index range 0..511 converted to string
+                lda #" "        ; can have a max length of 4 (" 511")
+                jsr chrout      ; if length < 4 then print extra spaces in front
+                inx             ; (max 2 spaces as the min length is 2 (e.g. idx 0 -> " 0"))
+                bne continue
+
+printnum        lda $fb         ; load the string pointer
+                ldy $fc
+                jsr strout      ; print the string
                 rts
 .bend
 
@@ -605,11 +782,17 @@ getchardata
                 rol $fc         ;   offset = $a4 * 8 = $520
                 asl $fb
                 rol $fc
+
+                lda $fb         ; store the offset for printing
+                sta charoffs
+                sta charaddr
                 lda $fc
+                sta charoffs+1
 
                 clc             ; the relocated CHARGEN sits at $f000
                 adc #$f0        ; add $f0 to the high byte of the offset
                 sta $fc         ; so the reversed $ sign is at $f520
+                sta charaddr+1
 
                 ; switch out KERNAL in order to access the underlying RAM containing CHARGEN
                 lda $01
@@ -678,9 +861,19 @@ hexb            rts
 
 ; *** data ***
 
-title           .null "ViewChars v1.0"
-preview         .null "Preview:"
+title           .byte $02, $17  ; row, column coordinates for plot
+                .null "ViewChars v1.0"
+preview         .byte $12, $02
+                .null "Preview:"
+indexstr        .byte $0c, $02
+                .null "Index:"
+offsetstr       .byte $0e, $02
+                .null "Offset:  $"
+addressstr      .byte $10, $02
+                .null "Address: $"
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
+charoffs        .word $0000     ; getchardata calculates the offsets and addresses and stores them here
+charaddr        .word $0000     ; so that they can easily be printed
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
 scdollar        .screen "$"     ; screen code of the dollar sign
