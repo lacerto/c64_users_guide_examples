@@ -9,12 +9,15 @@
 ; *** labels ***
 
 ; BASIC & KERNAL working storage
+linnum          = $14           ; integer line number at $14/$15 - temporary integer (see linget)
+txtptr          = $7a           ; $7a/$7b txtptr within chrget
 blnsw           = $cc           ; 0 -> cursor blinks; nonzero -> cursor does not blink
 pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
 color           = $286          ; text foreground color
 hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
+linget          = $a96b         ; convert string to integer at linnum ($14/$15); call $73 first
 strout          = $ab1e         ; print 0 terminated string
 givayf          = $b391         ; convert fixed integer y/a to float and store in FAC1
 linprt          = $bdcd         ; print number in x/a as decimal ascii
@@ -845,6 +848,26 @@ getindex
                 jsr strinput
                 ldx #24         ; line 24 (zero based)
                 jsr clrlin      ; clear line
+
+                ldx #$ff        ; copy the string to the basic input buffer
+loop            inx
+                lda inpstr,x
+                sta $200,x
+                bne loop
+                lda txtptr      ; push txtptr to the stack
+                pha             ; now txtptr points to the end of line in the basic prg
+                lda txtptr+1    ; in front of all this asm
+                pha
+                lda #$ff        ; set txtptr to $01ff
+                sta txtptr
+                lda #$01
+                sta txtptr+1
+                jsr $0073       ; increases txtptr to $0200 and gets a character
+                jsr linget      ; convert string to temporary int at $14/$15
+                pla             ; restore txtptr
+                sta txtptr+1
+                pla
+                sta txtptr
                 rts
 .bend
 
