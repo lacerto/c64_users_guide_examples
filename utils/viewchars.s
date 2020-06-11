@@ -838,7 +838,7 @@ getindex
 .block
                 clc
                 ldx #24         ; set cursor position
-                ldy #0
+                ldy #2
                 jsr plot
                 lda #<prompt    ; print prompt
                 ldy #>prompt
@@ -868,6 +868,16 @@ getindex
                 sta txtptr+1
                 pla
                 sta txtptr
+
+                ; check the converted integer as it must be in the 0-511 ($00 - $1ff) range
+                lda $15         ; check the high byte
+                cmp #$02
+                bcs getindex    ; a>=2 -> invalid value, prompt again for index
+
+                ; value is in range -> update charidx with the converted integer
+                sta charidx+1   ; the high byte is already in a
+                lda $14
+                sta charidx
                 rts
 .bend
 
@@ -1007,7 +1017,7 @@ chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
 scdollar        .screen "$"     ; screen code of the dollar sign
 
-prompt          .null "Character index: "
+prompt          .null "Character index (0-511): "
 numfilter       .null "1234567890"
 maxchars        .byte $00
 charcount       .byte $00
