@@ -9,11 +9,16 @@
 ; *** labels ***
 
 ; BASIC & KERNAL working storage
+linnum          = $14           ; integer line number at $14/$15 - temporary integer (see linget)
+chrgot          = $79           ; enter chrget ($73) without increasing txtptr first
+txtptr          = $7a           ; $7a/$7b txtptr within chrget
+blnsw           = $cc           ; 0 -> cursor blinks; nonzero -> cursor does not blink
 pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
 color           = $286          ; text foreground color
 hibase          = $288          ; top page for screen memory
 
 ; BASIC & KERNAL routines
+linget          = $a96b         ; convert string to integer at linnum ($14/$15); call $73 first
 strout          = $ab1e         ; print 0 terminated string
 givayf          = $b391         ; convert fixed integer y/a to float and store in FAC1
 linprt          = $bdcd         ; print number in x/a as decimal ascii
@@ -211,6 +216,8 @@ getkey
                 beq up
                 cmp #$53        ; S
                 beq down
+                cmp #$47        ; G
+                beq gotoidx
                 cmp #$1d        ; right
                 beq right
                 cmp #$9d        ; left
@@ -220,6 +227,8 @@ getkey
                 cmp #$11        ; down
                 beq down
                 cmp #$20        ; space
+                beq exit
+                cmp #$51        ; Q
                 beq exit
                 cmp #$0d        ; return
                 beq exit               
@@ -249,7 +258,12 @@ a00             dec charidx     ; no -> decrement index
 a01             lda #$ff        ; yes -> charidx = 511 ($1ff)
                 sta charidx
                 lda #$01
-                sta charidx+1                
+                sta charidx+1 
+                jmp end
+
+gotoidx         jsr getindex    ; let the user enter the index
+                jmp end
+
 end             lda #$00
                 rts
 exit    
@@ -816,6 +830,134 @@ copyloop
                 rts
 .bend
 
+; name:         getindex
+; description:  Allow the user to type in the desired index.
+; input:        -
+; output:       -
+getindex
+.block
+                clc
+                ldx #24         ; set cursor position
+                ldy #2
+                jsr plot
+                lda #<prompt    ; print prompt
+                ldy #>prompt
+                jsr strout
+                ldx #$03        ; max number of input characters allowed
+                lda #<numfilter ; address of the filter string
+                ldy #>numfilter
+                jsr strinput
+                ldx #24         ; line 24 (zero based)
+                jsr clrlin      ; clear line
+                lda charcount
+                beq return      ; 0 characters read? -> return without updating charidx
+
+                lda txtptr      ; push txtptr to the stack
+                pha             ; now txtptr points to the end of line in the basic prg
+                lda txtptr+1    ; in front of all this asm
+                pha
+
+                lda #<inpstr    ; set txtptr to inpstr
+                sta txtptr
+                lda #>inpstr
+                sta txtptr+1
+
+                ; convert the string at inpstr to int (linget reads up to the closing $00 using chrget)
+                jsr chrgot      ; get the first char from txtptr (the other chars are handled by linget)
+                jsr linget      ; convert string to temporary int at $14/$15
+
+                pla             ; restore txtptr
+                sta txtptr+1
+                pla
+                sta txtptr
+
+                ; check the converted integer as it must be in the 0-511 ($00 - $1ff) range
+                lda $15         ; check the high byte
+                cmp #$02
+                bcs getindex    ; a>=2 -> invalid value, prompt again for index
+
+                ; value is in range -> update charidx with the converted integer
+                sta charidx+1   ; the high byte is already in a
+                lda $14
+                sta charidx
+return                
+                rts
+.bend
+
+; name:         strinput
+; description:  This input routine allows only the input of characters defined in a filter list.
+;               The maximum allowed number of characters input can also be specified.
+;               Note: the null terminating the input string is not included in the maximum length!
+;               Thus, the resulting string needs a maximum of maxchars+1 bytes of storage.
+; input:        X - the maximum allowed length of the input string
+;               A/Y - pointer to the filter list, a null terminated string containing the allowed chars
+;                     allows to use different filters at each call
+; output:       the input string at the inpstr address    (null terminated, ready to print)
+; see also/thx: https://codebase64.org/doku.php?id=base:robust_string_input
+strinput
+.block                
+                stx maxchars        ; store the max number of characters allowed
+                sta filtertext+1    ; self modifying code
+                sty filtertext+2
+                lda blnsw           ; load cursor blink value
+                pha                 ; store it on the stack
+                lda #$00            ; characters received = 0
+                sta charcount
+                sta blnsw           ; enable cursor blink (blnsw = 0)
+inputloop       
+                jsr getin           ; get a character from the input device
+                beq inputloop       ; nothing received, loop
+
+                cmp #$14            ; handle delete
+                beq delete
+                cmp #$0d            ; handle return
+                beq done
+
+                ldy charcount       ; max length reached?
+                cpy maxchars        ; then loop and allow only delete and return
+                beq inputloop
+
+                sta lastchar        ; store the last character received
+
+                ldx #$00            ; index in the filter text
+filtertext      lda $ffff,x         ; $ffff is overwritten! see above
+                beq inputloop       ; end of filter list reached (null terminated)
+                cmp lastchar        ; compare to the last character
+                beq inputok         ; char found in the filter list -> OK
+                inx                 ; X++
+                jmp filtertext      ; loop
+
+inputok
+                lda lastchar        ; get the last character
+                ldy charcount       ; count functions as the index
+                sta inpstr,y        ; store the character
+                jsr chrout          ; echo it on the screen
+                cpy maxchars        ; max length reached?
+                beq inputloop       ; yes -> back to the main input loop
+                inc charcount       ; no -> count++
+                jmp inputloop       ; back to the main input loop
+
+delete
+                lda charcount
+                bne dodel           ; count != 0 then perform delete
+                jmp inputloop       ; otherwise back to the main loop
+dodel
+                dec charcount       ; count--
+                ldy charcount
+                lda #$00
+                sta inpstr,y        ; zero out the current char in the string
+                lda #$14            ; print delete
+                jsr chrout
+                jmp inputloop
+done
+                ldy charcount       ; Y = count
+                lda #$00            ; add the terminating null
+                sta inpstr,y
+                pla                 ; get the cursor blink value from stack
+                sta blnsw           ; restore it
+                rts
+.bend
+
 ; name:         hexify
 ; description:  
 ; input:        a - this value will be converted to a hex string
@@ -877,6 +1019,13 @@ charaddr        .word $0000     ; so that they can easily be printed
 chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing on screen
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
 scdollar        .screen "$"     ; screen code of the dollar sign
+
+prompt          .null "Character index (0-511): "
+numfilter       .null "1234567890"
+maxchars        .byte $00
+charcount       .byte $00
+lastchar        .byte $00
+inpstr          .repeat 4, $00
 
 ; sprites
 logosprite      
