@@ -43,6 +43,10 @@ sp0x            = $d000         ; sprite 0 x position
 sp0y            = $d001         ; sprite 0 y position
 sp1x            = $d002         ; sprite 1 x position
 sp1y            = $d003         ; sprite 1 y position
+sp2x            = $d004         ; sprite 2 x position
+sp2y            = $d005         ; sprite 2 y position
+sp3x            = $d006         ; sprite 3 x position
+sp3y            = $d007         ; sprite 3 y position
 msigx           = $d010         ; most significant bits of sprites 0-7 x position
 yxpand          = $d017         ; sprite vertical expansion register
 spmc            = $d01c         ; sprite multicolor register
@@ -51,6 +55,8 @@ spmc0           = $d025         ; sprite multicolor register 0
 spmc1           = $d026         ; sprite multicolor register 1
 sp0col          = $d027         ; sprite 0 color register
 sp1col          = $d028         ; sprite 1 color register
+sp2col          = $d029         ; sprite 2 color register
+sp3col          = $d02a         ; sprite 3 color register
 
 ; CIA registers
 ci1icr          = $dc0d         ; CIA1 interrupt control register
@@ -144,6 +150,8 @@ resetextbgcolormode .macro
                 jsr clrscr      ; clear the screen
                 jsr prtitle     ; print prg title
                 jsr logo        ; show logo (multi-color sprite)
+                jsr prtusage    ; print usage info
+                jsr showarrows  ; show arrow sprites in usage info
                 jsr prtidxstr   ; print index text
                 jsr prtoffset   ; print offset text
                 jsr prtaddress  ; print address text
@@ -312,6 +320,27 @@ prtitle
 .block
                 lda #<title
                 ldy #>title
+                jsr printxy
+                rts
+.bend
+
+; name:         prtusage
+; description:  print usage information
+; input:        -
+; output:       -
+prtusage
+.block
+                lda #<usage0
+                ldy #>usage0
+                jsr printxy
+                lda #<usage1
+                ldy #>usage1
+                jsr printxy
+                lda #<usage2
+                ldy #>usage2
+                jsr printxy
+                lda #<usage3
+                ldy #>usage3
                 jsr printxy
                 rts
 .bend
@@ -632,6 +661,72 @@ loop            lda chardata,x
                 cpx #$08
                 bne loop
                 rts
+.bend
+
+; name:         showarrows
+; description:  show arrows using sprites in the usage info area
+; input:        -
+; output:       -
+showarrows
+.block
+                ; copy sprite data to sprite block
+                ldx #$00
+copydata1       lda rightupsprite,x
+                sta $e080,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata1
+
+                ; set data pointer to the sprite block
+                ldx #$02        ; sprite #2
+                lda #$82        ; sprite block #130 ($c000 + $82*$40 = $e080)
+                sta sprdbp,x
+
+                ; set color
+                lda #white
+                sta sp2col
+
+                ; set sprite coordinates
+                lda #98
+                sta sp2y
+
+                lda #184
+                sta sp2x
+
+                ; enable sprite #2
+                lda spena
+                ora #%00000100
+                sta spena
+
+                ; copy sprite data to sprite block
+                ldx #$00
+copydata2       lda leftdownsprite,x
+                sta $e0c0,x
+                inx
+                cpx #63         ; copy 63 bytes
+                bne copydata2
+
+                ; set data pointer to the sprite block
+                ldx #$03        ; sprite #3
+                lda #$83        ; sprite block #131 ($c000 + $83*$40 = $e0c0)
+                sta sprdbp,x
+
+                ; set color
+                lda #white
+                sta sp3col
+
+                ; set sprite coordinates
+                lda #122
+                sta sp3y
+
+                lda #184
+                sta sp3x
+
+                ; enable sprite #3
+                lda spena
+                ora #%00001000
+                sta spena
+                rts                
 .bend
 
 ; name:         showchar
@@ -1013,6 +1108,17 @@ offsetstr       .byte $0e, $02
                 .null "Offset:  $"
 addressstr      .byte $10, $02
                 .null "Address: $"
+
+; usage information
+usage0          .byte $07, $14
+                .null "w/d - increase index"
+usage1          .byte $0a, $14
+                .null "a/s - decrease index"
+usage2          .byte $0c, $14
+                .null "g   - go to index"
+usage3          .byte $0e, $14
+                .null "q/ret/space - exit"                
+
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 charoffs        .word $0000     ; getchardata calculates the offsets and addresses and stores them here
 charaddr        .word $0000     ; so that they can easily be printed
@@ -1037,5 +1143,51 @@ logosprite
                 .byte $fa,$00,$0f,$f0,$00,$0f,$c0,$00
                 .byte $3f,$00,$00,$3f,$00,$00,$fc,$00
                 .byte $00,$f0,$00,$00,$f0,$00,$00
+
+rightupsprite
+                .byte $00, $00, $00
+                .byte $18, $03, $04
+                .byte $3c, $06, $06
+                .byte $7e, $0c, $7f
+                .byte $18, $18, $7f
+                .byte $18, $30, $06
+                .byte $18, $60, $04
+                .byte $18, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+
+leftdownsprite
+                .byte $00, $00, $00
+                .byte $10, $03, $18
+                .byte $30, $06, $18
+                .byte $7f, $0c, $18
+                .byte $7f, $18, $18
+                .byte $30, $30, $7e
+                .byte $10, $60, $3c
+                .byte $00, $00, $18
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
+                .byte $00, $00, $00
 
 previewsprite   .repeat 63, $00
