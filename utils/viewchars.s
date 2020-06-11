@@ -10,6 +10,7 @@
 
 ; BASIC & KERNAL working storage
 linnum          = $14           ; integer line number at $14/$15 - temporary integer (see linget)
+chrgot          = $79           ; enter chrget ($73) without increasing txtptr first
 txtptr          = $7a           ; $7a/$7b txtptr within chrget
 blnsw           = $cc           ; 0 -> cursor blinks; nonzero -> cursor does not blink
 pnt             = $d1           ; $d1/$d2 points to the address of the beginning of the current screen line
@@ -849,21 +850,20 @@ getindex
                 ldx #24         ; line 24 (zero based)
                 jsr clrlin      ; clear line
 
-                ldx #$ff        ; copy the string to the basic input buffer
-loop            inx
-                lda inpstr,x
-                sta $200,x
-                bne loop
                 lda txtptr      ; push txtptr to the stack
                 pha             ; now txtptr points to the end of line in the basic prg
                 lda txtptr+1    ; in front of all this asm
                 pha
-                lda #$ff        ; set txtptr to $01ff
+
+                lda #<inpstr    ; set txtptr to inpstr
                 sta txtptr
-                lda #$01
+                lda #>inpstr
                 sta txtptr+1
-                jsr $0073       ; increases txtptr to $0200 and gets a character
+
+                ; convert the string at inpstr to int (linget reads up to the closing $00 using chrget)
+                jsr chrgot      ; get the first char from txtptr (the other chars are handled by linget)
                 jsr linget      ; convert string to temporary int at $14/$15
+
                 pla             ; restore txtptr
                 sta txtptr+1
                 pla
