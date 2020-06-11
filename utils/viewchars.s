@@ -849,6 +849,8 @@ getindex
                 jsr strinput
                 ldx #24         ; line 24 (zero based)
                 jsr clrlin      ; clear line
+                lda charcount
+                beq return      ; 0 characters read? -> return without updating charidx
 
                 lda txtptr      ; push txtptr to the stack
                 pha             ; now txtptr points to the end of line in the basic prg
@@ -878,6 +880,7 @@ getindex
                 sta charidx+1   ; the high byte is already in a
                 lda $14
                 sta charidx
+return                
                 rts
 .bend
 
