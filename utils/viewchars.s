@@ -173,7 +173,7 @@ loop
                 ; display the character as 8*8 characters on the screen
                 ; (spaces with different background colors)
                 ldx #$02        ; row offset
-                ldy #$02        ; column offset
+                ldy #$03        ; column offset
                 jsr showchar
 
                 ; print hex values for each row
@@ -355,7 +355,7 @@ prtdlrs
 .block
                 ldx #$02        ; start at line 2
 loop            jsr fscrad      ; get screen line address in pnt for the line in x
-                ldy #$0c        ; offset 12 for the column
+                ldy #$0d        ; offset for the column
                 lda scdollar    ; screen code of the dollar sign
                 sta (pnt),y     ; poke it into the screen mem
                 inx             ; x++
@@ -505,7 +505,7 @@ loop            ldx $fd
                 jsr hexify      ; convert byte to hex string (null terminated)
                 clc
                 ldx $fe         ; load y-coord
-                ldy #$0d        ; x-coord
+                ldy #$0e        ; x-coord
                 jsr plot        ; set cursor position
                 lda #<bytehex
                 ldy #>bytehex
