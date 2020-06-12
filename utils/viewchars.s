@@ -2,6 +2,9 @@
 ;
 ; Switch to VIC Bank #3, copy CHARGEN to RAM and show the
 ; characters in it.
+;
+; Screen ram is at $cc00-$cfff, the relocated chargen sits at $f000-$ffff below KERNAL.
+; Sprite data begins at $e000.s
 
 ; *** includes ***
 .include "../include/colors.s"
@@ -21,7 +24,6 @@ hibase          = $288          ; top page for screen memory
 linget          = $a96b         ; convert string to integer at linnum ($14/$15); call $73 first
 strout          = $ab1e         ; print 0 terminated string
 givayf          = $b391         ; convert fixed integer y/a to float and store in FAC1
-linprt          = $bdcd         ; print number in x/a as decimal ascii
 fout            = $bddd         ; convert FAC1 to string result in a/y
 plot            = $e50a         ; set cursor position if carry clear / get position if carry set
 clrscr          = $e544         ; initialize the screen line link table and clear the screen
@@ -47,7 +49,6 @@ sp2x            = $d004         ; sprite 2 x position
 sp2y            = $d005         ; sprite 2 y position
 sp3x            = $d006         ; sprite 3 x position
 sp3y            = $d007         ; sprite 3 y position
-msigx           = $d010         ; most significant bits of sprites 0-7 x position
 yxpand          = $d017         ; sprite vertical expansion register
 spmc            = $d01c         ; sprite multicolor register
 xxpand          = $d01d         ; sprite horizontal expansion register
@@ -973,7 +974,7 @@ getindex
 
                 ; value is in range -> update charidx with the converted integer
                 sta charidx+1   ; the high byte is already in a
-                lda $14
+                lda linnum
                 sta charidx
 return                
                 rts
@@ -1098,6 +1099,7 @@ hexb            rts
 
 ; *** data ***
 
+; labels
 title           .byte $02, $17  ; row, column coordinates for plot
                 .null "ViewChars v1.0"
 preview         .byte $12, $02
@@ -1119,6 +1121,7 @@ usage2          .byte $0c, $14
 usage3          .byte $0e, $14
                 .null "q/ret/space - exit"                
 
+; character properties
 charidx         .byte $00, $00  ; character index (range 0-511 to index the 512 characters in CHARGEN)
 charoffs        .word $0000     ; getchardata calculates the offsets and addresses and stores them here
 charaddr        .word $0000     ; so that they can easily be printed
@@ -1126,6 +1129,7 @@ chardata        .repeat 8, $00  ; the 8 bytes of the character currently showing
 bytehex         .repeat 3, $00  ; 3 bytes for a null terminated hex string (byte value)
 scdollar        .screen "$"     ; screen code of the dollar sign
 
+; input routine data
 prompt          .null "Character index (0-511): "
 numfilter       .null "1234567890"
 maxchars        .byte $00
