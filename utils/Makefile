@@ -1,10 +1,13 @@
-CC 			= tmpx
+CC 			= $(shell ../get-compiler.sh ../bin)
 DiskFile	= ../disk/utils.d64
 
 PRGS = $(wildcard *.s)
 
-.PHONY: all
+.PHONY: all disk
 all: $(PRGS:.s=.prg)
+
+disk:
+	../make-disk.sh . $(DiskFile)
 
 .PHONY: clean
 clean:
@@ -12,5 +15,3 @@ clean:
 
 %.prg : %.s
 	$(CC) $<
-	c1541 -attach $(DiskFile) -delete $(notdir $(basename $@))
-	c1541 -attach $(DiskFile) -write $@ $(notdir $(basename $@))
