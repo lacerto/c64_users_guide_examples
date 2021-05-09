@@ -1,22 +1,17 @@
 SourceDir = src
-PrgDir = bin
-SRCS = $(wildcard $(SourceDir)/*.s)
-PRGS = $(addprefix $(PrgDir)/, $(notdir $(SRCS:.s=.prg)))
+UtilsDir = utils
+ExampleDiskFile = disk/examples.d64
+UtilsDiskFile = disk/utils.d64
 
-DiskFile = disk/examples.d64
-
-.PHONY: all utils
-all: $(PRGS) utils
-
-utils:
+.PHONY: all disk clean
+all:
+	$(MAKE) -C src
 	$(MAKE) -C utils
 
-$(PrgDir)/%.prg: $(SourceDir)/%.s
-	tmpx -i $< -o $@
-	c1541 -attach $(DiskFile) -delete $(notdir $(basename $@))
-	c1541 -attach $(DiskFile) -write $@ $(notdir $(basename $@))
+disk:
+	./make-disk.sh $(SourceDir) $(ExampleDiskFile)
+	./make-disk.sh $(UtilsDir) $(UtilsDiskFile)
 
-.PHONY: clean
 clean:
-	rm -f $(PrgDir)/*.prg
-	rm -f utils/*.prg
+	$(MAKE) -C src clean
+	$(MAKE) -C utils clean

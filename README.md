@@ -1,7 +1,6 @@
 # COMMODORE 64 User's Guide Examples in Machine Language
 
-[![Build Status](https://travis-ci.com/lacerto/c64_users_guide_examples.svg?branch=master)](https://travis-ci.com/lacerto/c64_users_guide_examples)
-
+[![Build C64 Binaries](https://github.com/lacerto/c64_users_guide_examples/actions/workflows/build.yml/badge.svg)](https://github.com/lacerto/c64_users_guide_examples/actions/workflows/build.yml)
 ## Description
 
 This repository contains a subset of the BASIC examples found in the **COMMODORE 64 User's Guide** converted to assembly language.
@@ -21,4 +20,4 @@ There are a couple of extensions that provide syntax highlighting for 6502.
 
 [Turbo Macro Pro Cross Assembler (TMPx)](http://turbo.style64.org/)
 
-[VICE 2.4](http://vice-emu.sourceforge.net/)
+[VICE](http://vice-emu.sourceforge.net/)
