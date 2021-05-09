@@ -1,0 +1,13 @@
+name: Build C64 Binaries
+on: push
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v2
+      - name: Build Binaries
+        run: make
