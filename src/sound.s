@@ -4,11 +4,6 @@
 
 ; *** labels ***
 
-; zero page
-
-freezp          = $fb           ; free zero page byte
-                                ; freezp+1 ($fc) is also used
-
 ; SID registers
 frelo1          = $d400         ; voice 1 frequency control low byte
 frehi1          = $d401         ; voice 1 frequency control high byte
@@ -45,24 +40,11 @@ delay .macro
                 ; timer B = 6*10 = 60. As timer A zeros ~60 times in a second
                 ; this will give us a 1s delay (approximately).
 
-                ; calculate 6*\1
-                ldx #\1         ; \1 -> x
-                lda #$00
-                sta freezp      ; $fb=0; $fc=0
-                sta freezp+1
-calctimlohi     clc             ; clear carry before addition
-                lda freezp      ; $fb -> a
-                adc #$06        ; a = a + 6
-                bcc nooverflow  ; did a overflow?
-                inc freezp+1    ; yes -> $fc++ inc high byte
-nooverflow      sta freezp      ; a -> $fb
-                dex             ; x--
-                bne calctimlohi ; x==0? no -> next iteration
-
-                ; load the calculated value to CIA #1 timer B latch
-                lda freezp
+                ; load 6 * argument \1 value to the timer latch
+timervalue      .var 6*\1
+                lda #<timervalue
                 sta timblo
-                lda freezp+1
+                lda #>timervalue
                 sta timbhi
 
                 ; bit 0: start timer B
